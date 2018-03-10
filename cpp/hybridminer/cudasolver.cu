@@ -1,23 +1,19 @@
 
- #include "cudasolver.h"
+#include "cudasolver.h"
+#include "sha3.h"
 
 #include <assert.h>
-
 #include <sstream>
 #include <iomanip>
 #include <stdio.h>
-
 #include <iostream>
 #include <string.h>
 using namespace std;
 
 //we will need this!
+#include "cuda_sha3.cu"
 
-
-
- #include "cuda_sha3.cu"
-
-
+extern int h_done[1];
 
 static const char* const ascii[] = {
   "00","01","02","03","04","05","06","07","08","09","0a","0b","0c","0d","0e","0f",
@@ -38,94 +34,101 @@ static const char* const ascii[] = {
   "f0","f1","f2","f3","f4","f5","f6","f7","f8","f9","fa","fb","fc","fd","fe","ff"
 };
 
-static uint8_t fromAscii(uint8_t c)
+static uint8_t fromAscii( uint8_t c )
 {
-  if (c >= '0' && c <= '9')
-    return (c - '0');
-  if (c >= 'a' && c <= 'f')
-    return (c - 'a' + 10);
-  if (c >= 'A' && c <= 'F')
-    return (c - 'A' + 10);
+  if( c >= '0' && c <= '9' )
+    return ( c - '0' );
+  if( c >= 'a' && c <= 'f' )
+    return ( c - 'a' + 10 );
+  if( c >= 'A' && c <= 'F' )
+    return ( c - 'A' + 10 );
 
 #if defined(__EXCEPTIONS) || defined(DEBUG)
-  throw std::runtime_error("invalid character");
+  throw std::runtime_error( "invalid character" );
 #else
   return 0xff;
 #endif
 }
 
-static uint8_t ascii_r(uint8_t a, uint8_t b)
+static uint8_t ascii_r( uint8_t a, uint8_t b )
 {
-  return fromAscii(a) * 16 + fromAscii(b);
+  return fromAscii( a ) * 16 + fromAscii( b );
 }
 
-static void HexToBytes(std::string const& hex, uint8_t bytes[])
+static void HexToBytes( std::string const& hex, uint8_t bytes[] )
 {
-  for (std::string::size_type i = 0, j = 0; i < hex.length(); i += 2, ++j)
+  for( std::string::size_type i = 0, j = 0; i < hex.length(); i += 2, ++j )
   {
-    bytes[j] = ascii_r(hex[i], hex[i + 1]);
+    bytes[j] = ascii_r( hex[i], hex[i + 1] );
   }
 }
 
+//static inline void be32enc( void *pp, uint32_t x )
+//{
+//  uint8_t *p = (uint8_t *)pp;
+//  p[3] = x & 0xff;
+//  p[2] = ( x >> 8 ) & 0xff;
+//  p[1] = ( x >> 16 ) & 0xff;
+//  p[0] = ( x >> 24 ) & 0xff;
+//}
 
 // --------------------------------------------------------------------
 
-
 // static
-std::atomic<uint32_t> CUDASolver::hashes(0u); // statistics only
-
+std::atomic<uint32_t> CUDASolver::hashes( 0u ); // statistics only
 
 CUDASolver::CUDASolver() noexcept :
-  m_address(ADDRESS_LENGTH),
-  m_challenge(UINT256_LENGTH),
-  m_target(UINT256_LENGTH),
-  m_target_tmp(UINT256_LENGTH),
-  m_buffer(ADDRESS_LENGTH + 2 * UINT256_LENGTH),
-  m_buffer_tmp(ADDRESS_LENGTH + 2 * UINT256_LENGTH), //this has something to do with updateBuffer
-  m_buffer_ready(false),
-  m_target_ready(false),
-  m_updated_gpu_inputs(false)
-{ }
+m_address( ADDRESS_LENGTH ),
+m_challenge( UINT256_LENGTH ),
+m_target( UINT256_LENGTH ),
+m_target_tmp( UINT256_LENGTH ),
+m_buffer( ADDRESS_LENGTH + 2 * UINT256_LENGTH ),
+m_buffer_tmp( ADDRESS_LENGTH + 2 * UINT256_LENGTH ), //this has something to do with updateBuffer
+m_buffer_ready( false ),
+m_target_ready( false ),
+m_updated_gpu_inputs( false )
+{
+}
 
-void CUDASolver::setAddress(std::string const& addr)
+void CUDASolver::setAddress( std::string const& addr )
 {
   cout << "Setting cuda addr \n";
 
-  assert(addr.length() == (ADDRESS_LENGTH * 2 + 2));
-  hexToBytes(addr, m_address);
+  assert( addr.length() == ( ADDRESS_LENGTH * 2 + 2 ) );
+  hexToBytes( addr, m_address );
   //updateBuffer();
 
   m_updated_gpu_inputs = true;
   updateGPULoop();
 }
 
-void CUDASolver::setChallenge(std::string const& chal)
+void CUDASolver::setChallenge( std::string const& chal )
 {
   cout << "Setting cuda chal \n";
 
   s_challenge = chal;
 
-  assert(chal.length() == (UINT256_LENGTH * 2 + 2));
-  hexToBytes(chal, m_challenge);
+  assert( chal.length() == ( UINT256_LENGTH * 2 + 2 ) );
+  hexToBytes( chal, m_challenge );
   //updateBuffer();
   m_updated_gpu_inputs = true;
   updateGPULoop();
 }
 
-void CUDASolver::setTarget(std::string const& target)
+void CUDASolver::setTarget( std::string const& target )
 {
   cout << "Setting cuda tar " << target << "\n";
 
-  assert(target.length() <= (UINT256_LENGTH * 2 + 2));
-  std::string const t(static_cast<std::string::size_type>(UINT256_LENGTH * 2 + 2) - target.length(), '0');
+  assert( target.length() <= ( UINT256_LENGTH * 2 + 2 ) );
+  std::string const t( static_cast<std::string::size_type>( UINT256_LENGTH * 2 + 2 ) - target.length(), '0' );
 
   s_target = target;
 
   // Double-buffer system, the trySolution() function will be blocked
   //  only when a change occurs.
   {
-    std::lock_guard<std::mutex> g(m_target_mutex);
-    hexToBytes("0x" + t + target.substr(2), m_target_tmp);
+    std::lock_guard<std::mutex> g( m_target_mutex );
+    hexToBytes( "0x" + t + target.substr( 2 ), m_target_tmp );
   }
   m_target_ready = true;
 
@@ -133,69 +136,68 @@ void CUDASolver::setTarget(std::string const& target)
   updateGPULoop();
 }
 
-
 bool CUDASolver::requiresRestart()
 {
- return m_updated_gpu_inputs;
+  return m_updated_gpu_inputs;
 }
 
-  //This will restart the miner if needed
+//This will restart the miner if needed
 void CUDASolver::updateGPULoop()
 {
   if( m_updated_gpu_inputs
-    && m_target_ready
-    && m_challenge.size() > 0
-    && m_address.size() > 0 )
+      && m_target_ready
+      && m_challenge.size() > 0
+      && m_address.size() > 0 )
   {
     m_updated_gpu_inputs = false;
 
-    printf("Target input:\n");
+    //    printf("Target input:\n");
 
-    if(s_target.length() < 66){
-      std::string zeros = std::string(66-s_target.length(),'0');
-      std::string s = "0x" + zeros + s_target.substr(2,s_target.length());
-      s_target=s;
+    if( s_target.length() < 66 )
+    {
+      std::string zeros = std::string( 66 - s_target.length(), '0' );
+      std::string s = "0x" + zeros + s_target.substr( 2, s_target.length() );
+      s_target = s;
 
     }
 
     unsigned char  target_input[64];
-    bytes_t target_bytes(32);
+    bytes_t target_bytes( 32 );
 
-    hexToBytes(s_target, target_bytes);
+    hexToBytes( s_target, target_bytes );
 
-    for(int i = 0; i < 32; i++){
-      target_input[i] =(unsigned char) target_bytes[i];
-      printf("%02x",(unsigned char) target_input[i]);
+    for( int i = 0; i < 32; i++ )
+    {
+      target_input[i] = (unsigned char)target_bytes[i];
+      //      printf("%02x",(unsigned char) target_input[i]);
     }
 
-
-  unsigned   char  hash_prefix[52];
-  std::string clean_challenge = s_challenge;
-  bytes_t challenge_bytes(32);
-
-
-  hexToBytes(clean_challenge, challenge_bytes);
+    unsigned   char  hash_prefix[52];
+    std::string clean_challenge = s_challenge;
+    bytes_t challenge_bytes( 32 );
 
 
+    hexToBytes( clean_challenge, challenge_bytes );
 
-  for(int i = 0; i < 32; i++){
-    hash_prefix[i] =(unsigned char) challenge_bytes[i];
-  }
-  for(int i = 0; i < 20; i++){
-  hash_prefix[i+32] = (unsigned char)m_address[i];
-  }
+    for( int i = 0; i < 32; i++ )
+    {
+      hash_prefix[i] = (unsigned char)challenge_bytes[i];
+    }
+    for( int i = 0; i < 20; i++ )
+    {
+      hash_prefix[i + 32] = (unsigned char)m_address[i];
+    }
 
+    /*
+      printf("Challenge+Address:\n");
+    for(int i = 0; i < 52; i++){
+      printf("%02x",(unsigned char) hash_prefix[i]);
+    }
+      printf("\n/prefix\n");
+      */
 
-    printf("Challenge+Address:\n");
-  for(int i = 0; i < 52; i++){
-    printf("%02x",(unsigned char) hash_prefix[i]);
-  }
-    printf("\n/prefix\n");
-
-
-
-    printf("Updating mining inputs\n");
-    update_mining_inputs((const char *)target_input , (const char *)hash_prefix);
+    printf( "Updating mining inputs\n" );
+    update_mining_inputs( target_input, hash_prefix );
   }
 
 }
@@ -214,132 +216,174 @@ void CUDASolver::updateBuffer()
   m_buffer_ready = true;
 }*/
 
-
 //call the sha3.cu init func
 void CUDASolver::init()
 {
-  cout << "CUDA initializing ... \n ";
-  gpu_init();
 }
 
-
-
-
-void CUDASolver::stopFinding( )
+void CUDASolver::stopFinding()
 {
   cout << "CUDA has stopped hashing for now. \n ";
 
-   //set h_done[0] = 1
-   stop_solving();
+  //set h_done[0] = 1
+  stop_solving();
 }
 
-
-
-CUDASolver::bytes_t CUDASolver::findSolution( )
+CUDASolver::bytes_t CUDASolver::findSolution()
 {
   m_updated_gpu_inputs = false;
-
+/*
   cout << "CUDA is trying to find a solution :) \n ";
 
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
-
-  printf("Target input:\n");
-
-  if(s_target.length() < 66){
-  	std::string zeros = std::string(66-s_target.length(),'0');
-  	std::string s = "0x" + zeros + s_target.substr(2,s_target.length());
-  	s_target=s;
-
+  printf( "Target input:\n" );
+*/
+  cudaSetDevice( 0 );
+  cout << "CUDA initializing ... \n ";
+  gpu_init();
+  if( s_target.length() < 66 )
+  {
+    std::string zeros = std::string( 66 - s_target.length(), '0' );
+    std::string s = "0x" + zeros + s_target.substr( 2, s_target.length() );
+    s_target = s;
   }
 
   unsigned char  target_input[64];
-  bytes_t target_bytes(32);
+  bytes_t target_bytes( 32 );
 
-  hexToBytes(s_target, target_bytes);
+  hexToBytes( s_target, target_bytes );
 
-  for(int i = 0; i < 32; i++){
-  	target_input[i] =(unsigned char) target_bytes[i];
-    printf("%02x",(unsigned char) target_input[i]);
+  for( int i = 0; i < 32; i++ )
+  {
+    target_input[i] = (unsigned char)target_bytes[i];
+//    printf( "%02x", (unsigned char)target_input[i] );
   }
 
+  unsigned   char  hash_prefix[52];
+  std::string clean_challenge = s_challenge;
+  bytes_t challenge_bytes( 32 );
 
-unsigned   char  hash_prefix[52];
-std::string clean_challenge = s_challenge;
-bytes_t challenge_bytes(32);
+  hexToBytes( clean_challenge, challenge_bytes );
 
-
-hexToBytes(clean_challenge, challenge_bytes);
-
-
-
-for(int i = 0; i < 32; i++){
-	hash_prefix[i] =(unsigned char) challenge_bytes[i];
-}
-for(int i = 0; i < 20; i++){
-hash_prefix[i+32] = (unsigned char)m_address[i];
-}
-
-
-	printf("Challenge+Address:\n");
-for(int i = 0; i < 52; i++){
-	printf("%02x",(unsigned char) hash_prefix[i]);
-}
-	printf("\n/prefix\n");
-
-
-unsigned char * s_solution = find_message((const char *)target_input , (const char *)hash_prefix);
-
-//here
-
-  CUDASolver::bytes_t byte_solution(32);
-  for(int i = 52; i < 84; i++){
-       byte_solution[i-52] = (uint8_t)s_solution[i];
-
-	//cout << (uint8_t)s_solution[i] << "\n";
-
+  for( int i = 0; i < 32; i++ )
+  {
+    hash_prefix[i] = (unsigned char)challenge_bytes[i];
   }
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
+  for( int i = 0; i < 20; i++ )
+  {
+    hash_prefix[i + 32] = (unsigned char)m_address[i];
+  }
+/*
+  printf( "\nChallenge+Address:\n" );
+  for( int i = 0; i < 52; i++ )
+  {
+    printf( "%02x", (unsigned char)hash_prefix[i] );
+  }
+  printf( "\n/prefix\n" );
+*/
+  unsigned char * s_solution;
+  CUDASolver::bytes_t byte_solution( CUDASolver::UINT256_LENGTH );
+
+  do
+  {
+    cudaSetDevice( 0 );
+    cudaDeviceReset();
+    cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync );
+
+    s_solution = find_message( target_input, hash_prefix );
+
+//    printf( "solution: %s\n", s_solution );
+    for( int i = 52; i < 84; i++ )
+    {
+      byte_solution[i - 52] = (uint8_t)s_solution[i];
+    }
+
+    if( trySolution( byte_solution ) )
+    {
+      h_done[0] = 1;
+      gpu_cleanup();
+    }
+  } while( !h_done[0] );
 
   return byte_solution;
 }
 
-
-
-std::string CUDASolver::hexStr( char* data, int len)
+std::string CUDASolver::hexStr( char* data, int len )
 {
-    std::stringstream ss;
-    ss << std::hex;
-    for(int i=0;i<len;++i)
-        ss << std::setw(2) << std::setfill('0') << (int)data[i];
-    return ss.str();
-}
-
-
-// static
-void CUDASolver::hexToBytes(std::string const& hex, bytes_t& bytes)
-{
-
-/*
-    cout << "hex to bytes: " << hex << "\n";
-    cout << bytes.size()  << "\n";
-    cout << hex.length()  << "\n";
-*/
-  assert(hex.length() % 2 == 0);
-  assert(bytes.size() == (hex.length() / 2 - 1));
-  HexToBytes(hex.substr(2), &bytes[0]);
+  std::stringstream ss;
+  ss << std::hex;
+  for( int i = 0; i < len; ++i )
+    ss << std::setw( 2 ) << std::setfill( '0' ) << (int)data[i];
+  return ss.str();
 }
 
 // static
-std::string CUDASolver::bytesToString(bytes_t const& buffer)
+void CUDASolver::hexToBytes( std::string const& hex, bytes_t& bytes )
+{
+
+  /*
+      cout << "hex to bytes: " << hex << "\n";
+      cout << bytes.size()  << "\n";
+      cout << hex.length()  << "\n";
+  */
+  assert( hex.length() % 2 == 0 );
+  assert( bytes.size() == ( hex.length() / 2 - 1 ) );
+  HexToBytes( hex.substr( 2 ), &bytes[0] );
+}
+
+// static
+std::string CUDASolver::bytesToString( bytes_t const& buffer )
 {
   std::string output;
-  output.reserve(buffer.size() * 2 + 1);
+  output.reserve( buffer.size() * 2 + 1 );
 
-  for (unsigned i = 0; i < buffer.size(); ++i)
+  for( unsigned i = 0; i < buffer.size(); ++i )
     output += ascii[buffer[i]];
 
   return output;
+}
+
+void CUDASolver::hash( bytes_t const& solution, bytes_t& digest )
+{
+  if( m_buffer_ready )
+  {
+    std::lock_guard<std::mutex> g( m_buffer_mutex );
+    m_buffer.swap( m_buffer_tmp );
+    m_buffer_ready = false;
+  }
+
+  std::copy( solution.cbegin(), solution.cend(), m_buffer.begin() + m_challenge.size() + m_address.size() );
+  keccak_256( &digest[0], digest.size(), &m_buffer[0], m_buffer.size() );
+}
+
+bool CUDASolver::trySolution( bytes_t const& solution )
+{
+  bytes_t digest( UINT256_LENGTH );
+  hash( solution, digest );
+
+  if( m_target_ready )
+  {
+    std::lock_guard<std::mutex> g( m_target_mutex );
+    m_target.swap( m_target_tmp );
+    m_target_ready = false;
+  }
+
+  ++hashes;
+
+  return lte( digest, m_target );
+}
+
+// static
+bool CUDASolver::lte( bytes_t const& left, bytes_t const& right )
+{
+  assert( left.size() == right.size() );
+
+  for( unsigned i = 0; i < left.size(); ++i )
+  {
+    if( left[i] == right[i] )
+      continue;
+    if( left[i] > right[i] )
+      return false;
+    return true;
+  }
+  return true;
 }

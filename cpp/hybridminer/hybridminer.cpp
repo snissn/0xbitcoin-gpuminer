@@ -11,6 +11,7 @@ using namespace std;
 
 #include "hybridminer.h"
 
+
 // What is this code doing ? defining a new instance of a class ?
 HybridMiner::HybridMiner() noexcept :
   m_solvers(std::thread::hardware_concurrency()),
@@ -87,32 +88,14 @@ void HybridMiner::run()
     cout << "\n--Starting mining loop using CUDA-- \n";
 
     m_bSolutionFound = false;
-
-    //fill me in ! run  gpu solver
-
+    
      CUDASolver::bytes_t solutionBytes(CUDASolver::UINT256_LENGTH);
-
-
-     //this is core dumping - maybe when you dont have a GPU?
-     cudaSolver.init();
-
 
      solutionBytes = cudaSolver.findSolution( );
      cout << "\n--GPU returned a soln ! -- \n";
 
-
-
-
-
-    //  std::string solutionString  = CUDASolver::bytesToString( solutionBytes );
-    //   cout << solutionString;
-
      //This sets m_solution and m_bSolutionFound
      solutionFound(solutionBytes);
-
-
-     //this sets m_bExit true
-     stop();
   }else{
     cout << "\n--Starting mining loop using CPU-- \n";
 
@@ -124,10 +107,7 @@ void HybridMiner::run()
 
     for (auto&& thr: m_threads)
       thr.join();
-
   }
-
-
 }
 
 void HybridMiner::stop()

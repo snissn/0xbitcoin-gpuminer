@@ -28,6 +28,8 @@ public:
   void init();
 
 public:
+  bool trySolution( bytes_t const& solution );
+public:
   bytes_t findSolution( );
   void stopFinding( );
 
