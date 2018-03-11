@@ -196,12 +196,12 @@ module.exports = {
                 //  self.submitNewMinedBlock(minerEthAddress, solution_number, digest, challenge_number);
                 self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest, challenge_number, target, difficulty)
             } else {
-                console.error("Verification failed!\n",
-                    "challenge: ", challenge_number, "\n",
-                    "address: ", minerEthAddress, "\n",
-                    "solution: ", solution_number, "\n",
-                    "digest: ", digestBigNumber, "\n",
-                    "target: ", target);
+//                console.error("Verification failed!\n",
+//                    "challenge: ", challenge_number, "\n",
+//                    "address: ", minerEthAddress, "\n",
+//                    "solution: ", solution_number, "\n",
+//                    "digest: ", digestBigNumber, "\n",
+//                    "target: ", target);
             }
         }
 
@@ -212,7 +212,6 @@ module.exports = {
         CPPMiner.stop();
         CPPMiner.run((err, sol) => {
             if (sol) {
-                console.log("Solution found!");
 
                 try {
                     verifyAndSubmit(sol);
@@ -220,7 +219,6 @@ module.exports = {
                     console.log(e)
                 }
             }
-            //  console.log("Stopping mining operations until the next block...");
             self.mining = false;
 
             debugLogger.log('MINING:', self.mining)
@@ -239,6 +237,6 @@ module.exports = {
     printMiningStats() {
         var hashes = CPPMiner.hashes();
         //  console.log('hashes:', hashes )
-        console.log('Hash rate: ' + parseInt(hashes / PRINT_STATS_TIMEOUT) + " kH/s");
+        //console.log('Hash rate: ' + parseInt(hashes / PRINT_STATS_TIMEOUT) + " kH/s");
     }
 }
