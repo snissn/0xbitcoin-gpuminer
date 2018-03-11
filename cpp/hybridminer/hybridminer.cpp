@@ -80,7 +80,7 @@ void HybridMiner::setMinerAddress( std::string const& minerAddress )
 // This is a the "main" thread of execution
 void HybridMiner::run()
 {
-  std::cout << "--Starting mining loop hardware type is: " << m_hardwareType.c_str() << std::endl;
+  //std::cout << "--Starting mining loop hardware type is: " << m_hardwareType.c_str() << std::endl;
 
   if( strcmp( m_hardwareType.c_str(), "cuda" ) == 0 )
   {

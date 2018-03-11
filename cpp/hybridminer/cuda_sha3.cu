@@ -1,8 +1,13 @@
 // magic numbers we need to tune
-#define INTENSITY 26
+#define INTENSITY 23
 #define CUDA_DEVICE 0
 // magic numbers we need to tune
-#include <process.h>
+#if defined(_MSC_VER)
+#  include <process.h>
+#else
+#  include <sys/types.h>
+#  include <unistd.h>
+#endif
 
 
 #include <time.h>
@@ -40,12 +45,14 @@ based off of https://github.com/Dunhili/SHA3-gpu-brute-force-cracker/blob/master
 #define NPT 2
 #define NBN 2
 
-__host__ void gpu_init();
+//__host__ void gpu_init();
 //void runBenchmarks();
 //char *read_in_messages();
-__host__ int gcd( int a, int b );
+//__host__ int gcd( int a, int b );
 
 // updated message the gpu_init() function
+int intensity;
+int cuda_device;
 int clock_speed;
 int compute_version;
 int h_done[1] = { 0 };
@@ -130,13 +137,6 @@ __device__ void keccak( const unsigned char *message, int message_len, unsigned 
     // Theta
     // for i = 0 to 5
     //    C[i] = state[i] ^ state[i + 5] ^ state[i + 10] ^ state[i + 15] ^ state[i + 20];
-    /*
-    C[0] = state[0] ^ state[5] ^ state[10] ^ state[15] ^ state[20];
-    C[1] = state[1] ^ state[6] ^ state[11] ^ state[16] ^ state[21];
-    C[2] = state[2] ^ state[7] ^ state[12] ^ state[17] ^ state[22];
-    C[3] = state[3] ^ state[8] ^ state[13] ^ state[18] ^ state[23];
-    C[4] = state[4] ^ state[9] ^ state[14] ^ state[19] ^ state[24];
-    */
     unsigned int x;
     for (x = 0; x < 5; x++) {
       C[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
@@ -147,42 +147,6 @@ __device__ void keccak( const unsigned char *message, int message_len, unsigned 
     //     temp = C[(i + 4) % 5] ^ ROTL64(C[(i + 1) % 5], 1);
     //     for j = 0 to 25, j += 5
     //          state[j + i] ^= temp;
-    /*
-    temp = C[4] ^ ROTL64( C[1], 1 );
-    state[0] ^= temp;
-    state[5] ^= temp;
-    state[10] ^= temp;
-    state[15] ^= temp;
-    state[20] ^= temp;
-
-    temp = C[0] ^ ROTL64( C[2], 1 );
-    state[1] ^= temp;
-    state[6] ^= temp;
-    state[11] ^= temp;
-    state[16] ^= temp;
-    state[21] ^= temp;
-
-    temp = C[1] ^ ROTL64( C[3], 1 );
-    state[2] ^= temp;
-    state[7] ^= temp;
-    state[12] ^= temp;
-    state[17] ^= temp;
-    state[22] ^= temp;
-
-    temp = C[2] ^ ROTL64( C[4], 1 );
-    state[3] ^= temp;
-    state[8] ^= temp;
-    state[13] ^= temp;
-    state[18] ^= temp;
-    state[23] ^= temp;
-
-    temp = C[3] ^ ROTL64( C[0], 1 );
-    state[4] ^= temp;
-    state[9] ^= temp;
-    state[14] ^= temp;
-    state[19] ^= temp;
-    state[24] ^= temp;
-    */
     D[0] = ROTL64(C[1], 1) ^ C[4];
     D[1] = ROTL64(C[2], 1) ^ C[0];
     D[2] = ROTL64(C[3], 1) ^ C[1];
@@ -403,7 +367,7 @@ __global__ __launch_bounds__( TPB52, 1 )
 #else
 __global__ __launch_bounds__( TPB50, 2 )
 #endif
-void gpu_mine( unsigned char * init_message, unsigned char *challenge_hash, char * device_solution, int *d_done, const unsigned char * hash_prefix, int now, unsigned long long cnt, unsigned int threads )
+void gpu_mine( unsigned char * init_message, unsigned char *challenge_hash, char * device_solution, int *d_done, unsigned char * hash_prefix, int now, unsigned long long cnt, unsigned int threads )
 {
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
   unsigned char message[84];
@@ -435,7 +399,7 @@ void gpu_mine( unsigned char * init_message, unsigned char *challenge_hash, char
     unsigned char output[output_len];
     keccak( message, str_len, output, output_len );
 
-    if( compare_hash( &challenge_hash[0], &output[0], output_len ) )
+    if( compare_hash( challenge_hash, output, output_len ) )
     {
       if( d_done[0] != 1 )
       {
@@ -460,18 +424,34 @@ __host__ void gpu_init()
   cudaDeviceProp device_prop;
   int device_count;
   start = clock();
+  
   srand((time(NULL) & 0xFFFF) | (getpid() << 16));
 
+  char config[10];
+  FILE * inf;
+  inf = fopen( "0xbtc.conf", "r" );
+  if( inf )
+  {
+    fgets( config, 10, inf );
+    fclose( inf );
+    intensity = atol( strtok( config, " " ) );
+    cuda_device = atol( strtok( NULL, " " ) );
+  }
+  else
+  {
+    intensity = INTENSITY;
+    cuda_device = CUDA_DEVICE;
+  }
 
   cudaGetDeviceCount( &device_count );
 
-  if( cudaGetDeviceProperties( &device_prop, CUDA_DEVICE ) != cudaSuccess )
+  if( cudaGetDeviceProperties( &device_prop, cuda_device ) != cudaSuccess )
   {
     printf( "Problem getting properties for device, exiting...\n" );
     exit( EXIT_FAILURE );
   }
 
-  cudaSetDevice( CUDA_DEVICE );
+  cudaSetDevice( cuda_device );
 
   compute_version = device_prop.major * 100 + device_prop.minor * 10;
 
@@ -499,11 +479,11 @@ __host__ unsigned long long getHashCount()
 }
 __host__ void resetHashCount()
 {
-  cnt = 0;
+  //cnt = 0;
   printable_hashrate_cnt = 0;
 }
 
-__host__ void update_mining_inputs( const char * challenge_target, const char * hash_prefix ) // can accept challenge
+__host__ void update_mining_inputs( unsigned char * challenge_target, unsigned char * hash_prefix ) // can accept challenge
 {
   cudaMalloc( &d_done, sizeof( int ) );
   cudaMalloc( &d_solution, 84 ); // solution
@@ -516,7 +496,7 @@ __host__ void update_mining_inputs( const char * challenge_target, const char * 
   cudaMemcpy( d_hash_prefix, hash_prefix, 52, cudaMemcpyHostToDevice );
 }
 
-__host__ bool find_message( const char * challenge_target, const char * hash_prefix ) // can accept challenge
+__host__ bool find_message( unsigned char * challenge_target, unsigned char * hash_prefix ) // can accept challenge
 {
   h_done[0] = 0;
 
@@ -528,7 +508,7 @@ __host__ bool find_message( const char * challenge_target, const char * hash_pre
   //cudaThreadSetLimit( cudaLimitMallocHeapSize, 2 * ( 84 * number_blocks*number_threads + 32 * number_blocks*number_threads ) );
 
   int now = (int)time( 0 );
-  uint32_t threads = 1UL << INTENSITY;
+  uint32_t threads = 1UL << intensity;
 
   uint32_t tpb;
   dim3 grid;
@@ -547,10 +527,10 @@ __host__ bool find_message( const char * challenge_target, const char * hash_pre
   unsigned char init_message[84];
   unsigned char * device_init_message;
 
-  for(int i_rand = 0; i_rand < 84; i_rand++){
-    init_message[i_rand] = (unsigned char ) rand()%256;
+  for(int i_rand = 0; i_rand < 21; i_rand++){
+    (int&)init_message[i_rand] = rand();
   }
-  cudaMalloc( (void**)&device_init_message, 84 );
+  cudaMalloc( &device_init_message, 84 );
   cudaMemcpy( device_init_message, init_message, 84, cudaMemcpyHostToDevice );
 
   gpu_mine <<< grid, block >>> (device_init_message, d_challenge_hash, d_solution, d_done, d_hash_prefix, now, cnt, threads );
@@ -570,8 +550,9 @@ __host__ bool find_message( const char * challenge_target, const char * hash_pre
 
   clock_t t = clock() - start;
 
-  fprintf( stderr, "Hash Rate: %i MH/Second\t", int(float(printable_hashrate_cnt)/(((float)t)/CLOCKS_PER_SEC )/1000000));
-  fprintf( stderr, "Total hashes: %llu\n", printable_hashrate_cnt );
+  fprintf( stderr, "Hash Rate: %*.2f MH/Second\tTotal hashes: %*llu\n",
+           7, ( (double)printable_hashrate_cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
+           15, printable_hashrate_cnt );
   return ( h_done[0] == 1 );
 }
 

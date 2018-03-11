@@ -184,7 +184,7 @@ void CUDASolver::updateGPULoop()
     //printf( "\n/prefix\n" );
 
     //printf( "Updating mining inputs\n" );
-    update_mining_inputs( (const char *)target_input, (const char *)hash_prefix );
+    update_mining_inputs( target_input, hash_prefix );
     stop_solving();
   }
 }
@@ -278,7 +278,7 @@ CUDASolver::bytes_t CUDASolver::findSolution()
     //cudaDeviceReset();
     cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync );
 
-    if( !find_message( (const char *)target_input, (const char *)hash_prefix ) )
+    if( !find_message( target_input, hash_prefix ) )
       continue;
     //here
     for( int i = 52; i < 84; i++ )
