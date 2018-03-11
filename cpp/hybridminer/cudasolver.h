@@ -25,6 +25,7 @@ public:
 
   bytes_t findSolution();
   void stopFinding();
+  bool trySolution( bytes_t const& solution );
 
   static void hexToBytes( std::string const& hex, bytes_t& bytes );
   static std::string bytesToString( bytes_t const& buffer );

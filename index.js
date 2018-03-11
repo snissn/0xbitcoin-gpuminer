@@ -29,7 +29,6 @@ async function promptForCommand() {
         console.log('\n')
         prompt.start();
         prompt.get(['command'], async function (err, result) {
-
             if (err) {
                 console.log(err);
                 rejected(err);

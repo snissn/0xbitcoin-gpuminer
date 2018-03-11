@@ -103,9 +103,6 @@ void HybridMiner::run()
 
     //This sets m_solution and m_bSolutionFound
     solutionFound( solutionBytes );
-
-    //this sets m_bExit true
-    stop();
   }
   else
   {

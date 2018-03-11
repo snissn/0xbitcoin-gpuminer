@@ -1,5 +1,6 @@
 // magic numbers we need to tune
 #define INTENSITY 26
+#define CUDA_DEVICE 0
 // magic numbers we need to tune
 
 #include <time.h>
@@ -37,10 +38,10 @@ based off of https://github.com/Dunhili/SHA3-gpu-brute-force-cracker/blob/master
 #define NPT 2
 #define NBN 2
 
-void gpu_init();
+__host__ void gpu_init();
 //void runBenchmarks();
 //char *read_in_messages();
-int gcd( int a, int b );
+__host__ int gcd( int a, int b );
 
 // updated message the gpu_init() function
 int clock_speed;
@@ -49,10 +50,10 @@ int h_done[1] = { 0 };
 
 unsigned long long cnt;
 
-int num_messages;
-const int digest_size = 256;
-const int digest_size_bytes = digest_size / 8;
-const size_t str_length = 7;	//change for different sizes
+//int num_messages;
+//const int digest_size = 256;
+//const int digest_size_bytes = digest_size / 8;
+//const size_t str_length = 7;	//change for different sizes
 
 unsigned char * h_message;
 
@@ -381,7 +382,7 @@ void gpu_mine( unsigned char *challenge_hash, char * device_solution, int *d_don
   unsigned char message[84];
   //char * hash = &working_memory_hash[32 * ( tid )];
 
-  memset( message, 0xf, 84 );
+  //memset( message, 0x00, 84 );
 
   int str_len = 84;
 
@@ -435,11 +436,13 @@ __host__ void gpu_init()
 
   cudaGetDeviceCount( &device_count );
 
-  if( cudaGetDeviceProperties( &device_prop, 0 ) != cudaSuccess )
+  if( cudaGetDeviceProperties( &device_prop, CUDA_DEVICE ) != cudaSuccess )
   {
     printf( "Problem getting properties for device, exiting...\n" );
     exit( EXIT_FAILURE );
   }
+
+  cudaSetDevice( CUDA_DEVICE );
 
   compute_version = device_prop.major * 100 + device_prop.minor * 10;
 
@@ -447,10 +450,10 @@ __host__ void gpu_init()
 
   h_message = (unsigned char*)malloc( 84 );
 
-  cudaMalloc( (void**)&d_done, sizeof( int ) );
-  cudaMalloc( (void**)&d_solution, 84 ); // solution
-  cudaMalloc( (void**)&d_challenge_hash, 32 );
-  cudaMalloc( (void**)&d_hash_prefix, 52 );
+  cudaMalloc( &d_done, sizeof( int ) );
+  cudaMalloc( &d_solution, 84 ); // solution
+  cudaMalloc( &d_challenge_hash, 32 );
+  cudaMalloc( &d_hash_prefix, 52 );
 
   //cnt = 0;
 }
@@ -471,11 +474,10 @@ __host__ void resetHashCount()
 
 __host__ void update_mining_inputs( const char * challenge_target, const char * hash_prefix ) // can accept challenge
 {
-  cudaMalloc( (void**)&d_done, sizeof( int ) );
-  cudaMalloc( (void**)&d_solution, 84 ); // solution
-  cudaMalloc( (void**)&d_challenge_hash, 32 );
-
-  cudaMalloc( (void**)&d_hash_prefix, 52 );
+  cudaMalloc( &d_done, sizeof( int ) );
+  cudaMalloc( &d_solution, 84 ); // solution
+  cudaMalloc( &d_challenge_hash, 32 );
+  cudaMalloc( &d_hash_prefix, 52 );
 
   cudaMemcpy( d_done, h_done, sizeof( int ), cudaMemcpyHostToDevice );
   cudaMemset( d_solution, 0xff, 84 );

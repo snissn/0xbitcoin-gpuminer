@@ -1,4 +1,5 @@
 #include "cudasolver.h"
+#include "sha3.h"
 
 #include <assert.h>
 #include <sstream>
@@ -274,15 +275,17 @@ CUDASolver::bytes_t CUDASolver::findSolution()
 
   do
   {
+    //cudaDeviceReset();
+    cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync );
+
     if( !find_message( (const char *)target_input, (const char *)hash_prefix ) )
       continue;
-
     //here
     for( int i = 52; i < 84; i++ )
     {
       byte_solution[i - 52] = (uint8_t)h_message[i];
 
-      //cout << (uint8_t)s_solution[i] << "\n";
+      //cout << (uint8_t)s_solution[i];
     }
   } while( !h_done[0] );
   gpu_cleanup();
@@ -326,4 +329,48 @@ std::string CUDASolver::bytesToString( bytes_t const& buffer )
     output += ascii[buffer[i]];
 
   return output;
+}
+
+// static
+bool CUDASolver::lte( bytes_t const& left, bytes_t const& right )
+{
+  assert( left.size() == right.size() );
+
+  for( unsigned i = 0; i < left.size(); ++i )
+  {
+    if( left[i] == right[i] )
+      continue;
+    if( left[i] > right[i] )
+      return false;
+    return true;
+  }
+  return true;
+}
+
+void CUDASolver::hash( bytes_t const& solution, bytes_t& digest )
+{
+  if( m_buffer_ready )
+  {
+    std::lock_guard<std::mutex> g( m_buffer_mutex );
+    m_buffer.swap( m_buffer_tmp );
+    m_buffer_ready = false;
+  }
+
+  std::copy( solution.cbegin(), solution.cend(), m_buffer.begin() + m_challenge.size() + m_address.size() );
+  keccak_256( &digest[0], digest.size(), &m_buffer[0], m_buffer.size() );
+}
+
+bool CUDASolver::trySolution( bytes_t const& solution )
+{
+  bytes_t digest( UINT256_LENGTH );
+  hash( solution, digest );
+
+  if( m_target_ready )
+  {
+    std::lock_guard<std::mutex> g( m_target_mutex );
+    m_target.swap( m_target_tmp );
+    m_target_ready = false;
+  }
+
+  return lte( digest, m_target );
 }
