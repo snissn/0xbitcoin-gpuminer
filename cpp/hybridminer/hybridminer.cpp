@@ -2,7 +2,7 @@
 #include <random>
 #include <thread>
 
-//allow print out
+//allow print32_t out
 #include <iostream>
 #include <string.h>
 
@@ -80,15 +80,11 @@ void HybridMiner::setMinerAddress( std::string const& minerAddress )
 // This is a the "main" thread of execution
 void HybridMiner::run()
 {
-  //std::cout << "--Starting mining loop hardware type is: " << m_hardwareType.c_str() << std::endl;
-
   if( strcmp( m_hardwareType.c_str(), "cuda" ) == 0 )
   {
     std::cout << "--Starting mining loop using CUDA-- " << std::endl;
 
     m_bSolutionFound = false;
-
-    //fill me in ! run  gpu solver
 
     CUDASolver::bytes_t solutionBytes( CUDASolver::UINT256_LENGTH );
 
@@ -98,16 +94,11 @@ void HybridMiner::run()
     solutionBytes = cudaSolver.findSolution();
     std::cout << "--GPU returned a soln ! -- " << std::endl;
 
-    //  std::string solutionString  = CUDASolver::bytesToString( solutionBytes );
-    //   cout << solutionString;
-
     //This sets m_solution and m_bSolutionFound
     solutionFound( solutionBytes );
   }
   else
   {
-    std::cout << "--Starting mining loop using CPU-- " << std::endl;
-
     m_bExit = m_bSolutionFound = false;
 
     // These are the Solver threads

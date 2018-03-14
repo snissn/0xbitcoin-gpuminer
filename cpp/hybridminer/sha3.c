@@ -55,7 +55,7 @@ static inline void keccakf( void* state )
   uint64_t t = 0;
   uint8_t x, y;
 
-  for( int i = 0; i < 24; i++ )
+  for( int32_t i = 0; i < 24; i++ )
   {
     // Theta
     FOR5( x, 1,
@@ -120,7 +120,7 @@ mkapply_sd( setout, dst[i] = src[i] )  // setout
   }
 
 /** The sponge-based hash construction. **/
-static inline int hash( uint8_t* out, size_t outlen,
+static inline int32_t hash( uint8_t* out, size_t outlen,
                         const uint8_t* in, size_t inlen,
                         size_t rate, uint8_t delim )
 {
@@ -147,12 +147,12 @@ static inline int hash( uint8_t* out, size_t outlen,
 
 /*** Helper macros to define SHA3 and SHAKE instances. ***/
 #define defshake(bits)                                            \
-  int shake##bits(uint8_t* out, size_t outlen,                    \
+  int32_t shake##bits(uint8_t* out, size_t outlen,                    \
                   const uint8_t* in, size_t inlen) {              \
     return hash(out, outlen, in, inlen, 200 - (bits / 4), 0x1f);  \
   }
 #define defsha3(bits)                                             \
-  int sha3_##bits(uint8_t* out, size_t outlen,                    \
+  int32_t sha3_##bits(uint8_t* out, size_t outlen,                    \
                   const uint8_t* in, size_t inlen) {              \
     if (outlen > (bits/8)) {                                      \
       return -1;                                                  \
@@ -160,7 +160,7 @@ static inline int hash( uint8_t* out, size_t outlen,
     return hash(out, outlen, in, inlen, 200 - (bits / 4), 0x06);  \
   }
 #define defkeccak(bits)                                           \
-  int keccak_##bits(uint8_t* out, size_t outlen,                  \
+  int32_t keccak_##bits(uint8_t* out, size_t outlen,                  \
                   const uint8_t* in, size_t inlen) {              \
     if (outlen > (bits/8)) {                                      \
       return -1;                                                  \

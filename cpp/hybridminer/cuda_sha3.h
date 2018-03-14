@@ -14,19 +14,19 @@ public:
   void gpu_init();
   void runBenchmarks();
   char *read_in_messages();
-  int gcd( int a, int b );
+  int32_t gcd( int32_t a, int32_t b );
 
 private:
   // updated message the gpu_init() function
-  int clock_speed;
-  int number_multi_processors;
-  int number_blocks;
-  int number_threads;
-  int max_threads_per_mp;
+  int32_t clock_speed;
+  int32_t number_multi_processors;
+  int32_t number_blocks;
+  int32_t number_threads;
+  int32_t max_threads_per_mp;
 
-  int num_messages;
-  const int digest_size = 256;
-  const int digest_size_bytes = digest_size / 8;
+  int32_t num_messages;
+  const int32_t digest_size = 256;
+  const int32_t digest_size_bytes = digest_size / 8;
   const size_t str_length = 7;	//change for different sizes
 
   cudaEvent_t start, stop;

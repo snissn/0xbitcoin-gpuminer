@@ -10,13 +10,13 @@ extern "C" {
 #include <stdlib.h>
 
 #define decshake(bits) \
-  int shake##bits(uint8_t*, size_t, const uint8_t*, size_t);
+  int32_t shake##bits(uint8_t*, size_t, const uint8_t*, size_t);
 
 #define decsha3(bits) \
-  int sha3_##bits(uint8_t*, size_t, const uint8_t*, size_t);
+  int32_t sha3_##bits(uint8_t*, size_t, const uint8_t*, size_t);
 
 #define deckeccak(bits) \
-  int keccak_##bits(uint8_t*, size_t, const uint8_t*, size_t);
+  int32_t keccak_##bits(uint8_t*, size_t, const uint8_t*, size_t);
 
 decshake(128)
 decshake(256)

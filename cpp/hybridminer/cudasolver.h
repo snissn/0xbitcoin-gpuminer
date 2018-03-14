@@ -29,7 +29,7 @@ public:
 
   static void hexToBytes( std::string const& hex, bytes_t& bytes );
   static std::string bytesToString( bytes_t const& buffer );
-  static std::string hexStr( char* data, int len );
+  static std::string hexStr( char* data, int32_t len );
 
   // Implement this for verification or pass to CPUSolver somehow?
   static bool lte( bytes_t const& left, bytes_t const& right );
