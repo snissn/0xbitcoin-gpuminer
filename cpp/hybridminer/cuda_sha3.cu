@@ -55,6 +55,8 @@ clock_t start;
 uint64_t cnt;
 uint64_t printable_hashrate_cnt;
 
+bool gpu_initialized;
+
 uint8_t * h_message;
 
 int32_t* d_done;
@@ -411,6 +413,8 @@ void stop_solving()
 __host__
 void gpu_init()
 {
+  if( gpu_initialized ) return;
+
   cudaDeviceProp device_prop;
   int32_t device_count;
   start = clock();
@@ -458,6 +462,8 @@ void gpu_init()
 
   //cnt = 0;
   printable_hashrate_cnt = 0;
+
+  gpu_initialized = true;
 }
 
 __host__

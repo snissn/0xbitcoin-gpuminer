@@ -192,7 +192,7 @@ module.exports = {
             const digest = web3utils.sha3(challenge_number + addressFrom.substring(2) + solution_number.substring(2));
             const digestBigNumber = web3utils.toBN(digest);
             if (digestBigNumber.lte(miningParameters.miningTarget)) {
-                console.log('Submit mined solution for challenge ', challenge_number);
+                console.log('\x1b[2ASubmit mined solution for challenge ', challenge_number, '\n\n');
                 //  self.submitNewMinedBlock(minerEthAddress, solution_number, digest, challenge_number);
                 self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest, challenge_number, target, difficulty)
             } else {
@@ -212,7 +212,6 @@ module.exports = {
         CPPMiner.stop();
         CPPMiner.run((err, sol) => {
             if (sol) {
-
                 try {
                     verifyAndSubmit(sol);
                 } catch (e) {

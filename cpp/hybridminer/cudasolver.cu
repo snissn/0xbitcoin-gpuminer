@@ -80,6 +80,11 @@ m_updated_gpu_inputs( false )
 {
 }
 
+CUDASolver::~CUDASolver()
+{
+  gpu_cleanup();
+}
+
 void CUDASolver::setAddress( std::string const& addr )
 {
   assert( addr.length() == ( ADDRESS_LENGTH * 2 + 2 ) );
@@ -133,40 +138,40 @@ void CUDASolver::updateGPULoop()
       && m_challenge.size() > 0
       && m_address.size() > 0 )
   {
-    m_updated_gpu_inputs = false;
+    // m_updated_gpu_inputs = false;
 
-    if( s_target.length() < 66 )
-    {
-      std::string zeros = std::string( 66 - s_target.length(), '0' );
-      std::string s = "0x" + zeros + s_target.substr( 2, s_target.length() );
-      s_target = s;
-    }
+    // if( s_target.length() < 66 )
+    // {
+    //   std::string zeros = std::string( 66 - s_target.length(), '0' );
+    //   std::string s = "0x" + zeros + s_target.substr( 2, s_target.length() );
+    //   s_target = s;
+    // }
 
-    uint8_t target_input[64];
-    bytes_t target_bytes( 32 );
+    // uint8_t target_input[64];
+    // bytes_t target_bytes( 32 );
 
-    hexToBytes( s_target, target_bytes );
+    // hexToBytes( s_target, target_bytes );
 
-    for( int32_t i = 0; i < 32; i++ )
-    {
-      target_input[i] = (uint8_t)target_bytes[i];
-    }
+    // for( int32_t i = 0; i < 32; i++ )
+    // {
+    //   target_input[i] = (uint8_t)target_bytes[i];
+    // }
 
-    uint8_t hash_prefix[52];
-    std::string clean_challenge = s_challenge;
-    bytes_t challenge_bytes( 32 );
+    // uint8_t hash_prefix[52];
+    // std::string clean_challenge = s_challenge;
+    // bytes_t challenge_bytes( 32 );
 
-    hexToBytes( clean_challenge, challenge_bytes );
+    // hexToBytes( clean_challenge, challenge_bytes );
 
-    for( int32_t i = 0; i < 32; i++ )
-    {
-      hash_prefix[i] = (uint8_t)challenge_bytes[i];
-    }
-    for( int32_t i = 0; i < 20; i++ )
-    {
-      hash_prefix[i + 32] = (uint8_t)m_address[i];
-    }
-    update_mining_inputs( target_input, hash_prefix );
+    // for( int32_t i = 0; i < 32; i++ )
+    // {
+    //   hash_prefix[i] = (uint8_t)challenge_bytes[i];
+    // }
+    // for( int32_t i = 0; i < 20; i++ )
+    // {
+    //   hash_prefix[i + 32] = (uint8_t)m_address[i];
+    // }
+    // update_mining_inputs( target_input, hash_prefix );
     stop_solving();
   }
 }
@@ -188,7 +193,7 @@ void CUDASolver::updateBuffer()
 //call the sha3.cu init func
 void CUDASolver::init()
 {
-  std::cout << "CUDA initializing ..." << std::endl;
+  // std::cout << "CUDA initializing ..." << std::endl;
   gpu_init();
 }
 
@@ -249,8 +254,6 @@ CUDASolver::bytes_t CUDASolver::findSolution()
   {
     byte_solution[i - 52] = (uint8_t)h_message[i];
   }
-
-  gpu_cleanup();
 
   // What are these even here for?
   //cudaEventDestroy( start );

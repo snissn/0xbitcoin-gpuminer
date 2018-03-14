@@ -16,6 +16,7 @@ public:
   static const unsigned short UINT256_LENGTH = 32u;
 
   CUDASolver() noexcept;
+  ~CUDASolver();
 
   void setAddress( std::string const& addr );
   void setChallenge( std::string const& chal );
