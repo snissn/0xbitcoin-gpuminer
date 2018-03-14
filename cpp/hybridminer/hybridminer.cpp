@@ -82,7 +82,7 @@ void HybridMiner::run()
 {
   if( strcmp( m_hardwareType.c_str(), "cuda" ) == 0 )
   {
-    std::cout << "--Starting mining loop using CUDA-- " << std::endl;
+    // std::cout << "--Starting mining loop using CUDA-- " << std::endl;
 
     m_bSolutionFound = false;
 

@@ -2,6 +2,15 @@
 #define INTENSITY 23
 #define CUDA_DEVICE 0
 // default magic numbers
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <time.h>
+#include <curand.h>
+#include <assert.h>
+#include <curand_kernel.h>
+
 #if defined(_MSC_VER)
 #  include <process.h>
 #else
@@ -9,11 +18,7 @@
 #  include <unistd.h>
 #endif
 
-
-#include <time.h>
-#include <curand.h>
-#include <assert.h>
-#include <curand_kernel.h>
+#include "cudasolver.h"
 
 /*
 Author: Mikers
@@ -26,12 +31,6 @@ based off of https://github.com/Dunhili/SHA3-gpu-brute-force-cracker/blob/master
  *
  * This is the parallel version of SHA-3.
  */
-
-#include "cudasolver.h"
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
 
 #ifdef __INTELLISENSE__
  /* reduce vstudio warnings (__byteperm, blockIdx...) */
@@ -56,6 +55,7 @@ uint64_t cnt;
 uint64_t printable_hashrate_cnt;
 
 bool gpu_initialized;
+bool new_input;
 
 uint8_t * h_message;
 
@@ -89,35 +89,31 @@ __device__ const int32_t piln[24] = {
 };
 
 __device__
-int32_t compare_hash( uint8_t *target, uint8_t *hash, int32_t length )
+int32_t compare_hash( uint8_t *target, uint8_t *hash )
 {
-  int32_t i = 0;
-  for( i = 0; i < length; i++ )
+  int8_t i = 0;
+  for( i = 0; i < 32; i++ )
   {
-    if( hash[i] != target[i] )break;
+    if( hash[i] != target[i] ) break;
   }
-  return (uint8_t)( hash[i] ) < (uint8_t)( target[i] );
+  return hash[i] < target[i];
 }
 
 __device__
-void keccak( const uint8_t *message, int32_t message_len, uint8_t *output, int32_t output_len )
+void keccak( uint8_t *message, uint8_t *output )
 {
   uint64_t state[25];
-  uint8_t temp_message[144];
-  const int32_t rsize = 136;
-  const int32_t rsize_byte = 17;
 
   memset( state, 0, sizeof( state ) );
 
   // last block and padding
-  memcpy( temp_message, message, message_len );
-  temp_message[message_len++] = 1;
-  memset( temp_message + message_len, 0, rsize - message_len );
-  temp_message[rsize - 1] |= 0x80;
+  message[84] = 1;
+  memset( &message[85], 0, 51 );
+  message[135] |= 0x80;
 
-  for( int32_t i = 0; i < rsize_byte; i++ )
+  for( int32_t i = 0; i < 17; i++ )
   {
-    state[i] ^= ( (uint64_t *)temp_message )[i];
+    state[i] ^= ( (uint64_t *)message )[i];
   }
 
   uint64_t temp, C[5], D[5];
@@ -349,7 +345,7 @@ void keccak( const uint8_t *message, int32_t message_len, uint8_t *output, int32
     //  Iota
     state[0] ^= RC[i];
   }
-  memcpy( output, state, output_len );
+  memcpy( output, state, 32 );
 }
 
 // hash length is 256 bits
@@ -361,10 +357,8 @@ __global__ __launch_bounds__( TPB50, 2 )
   void gpu_mine( uint8_t* init_message, uint8_t* challenge_hash, uint8_t* device_solution, int32_t* done, uint8_t* hash_prefix, int32_t now, uint64_t cnt, uint32_t threads )
 {
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
-  uint8_t message[84];
+  uint8_t message[144];
   memcpy(message, init_message, 84);
-
-  int32_t str_len = 84;
 
   int32_t len = 0;
   for( len = 0; len < 52; len++ )
@@ -387,14 +381,14 @@ __global__ __launch_bounds__( TPB50, 2 )
 
     const int32_t output_len = 32;
     uint8_t output[output_len];
-    keccak( message, str_len, output, output_len );
+    keccak( message, output );
 
-    if( compare_hash( challenge_hash, output, output_len ) )
+    if( compare_hash( challenge_hash, output ) )
     {
       if( done[0] != 1 )
       {
         done[0] = 1;
-        memcpy( device_solution, message, str_len );
+        memcpy( device_solution, message, 84 );
       }
       return;
     }
@@ -405,6 +399,24 @@ __host__
 void stop_solving()
 {
   h_done[0] = 1;
+}
+
+__host__
+int32_t gcd( int32_t a, int32_t b )
+{
+  return ( a == 0 ) ? b : gcd( b % a, a );
+}
+
+__host__
+uint64_t getHashCount()
+{
+  return cnt;
+}
+__host__
+void resetHashCount()
+{
+  //cnt = 0;
+  printable_hashrate_cnt = 0;
 }
 
 /**
@@ -467,36 +479,20 @@ void gpu_init()
 }
 
 __host__
-int32_t gcd( int32_t a, int32_t b )
+void update_mining_inputs()
 {
-  return ( a == 0 ) ? b : gcd( b % a, a );
-}
-
-__host__
-uint64_t getHashCount()
-{
-  return cnt;
-}
-__host__
-void resetHashCount()
-{
-  //cnt = 0;
-  printable_hashrate_cnt = 0;
-}
-
-__host__
-void update_mining_inputs( uint8_t * challenge_target, uint8_t * hash_prefix )
-{
-  cudaMemcpy( d_done, h_done, sizeof( int32_t ), cudaMemcpyHostToDevice );
-  cudaMemset( d_solution, 0xff, 84 );
-  cudaMemcpy( d_challenge_hash, challenge_target, 32, cudaMemcpyHostToDevice );
-  cudaMemcpy( d_hash_prefix, hash_prefix, 52, cudaMemcpyHostToDevice );
+  new_input = true;
+  //cudaMemcpy( d_done, h_done, sizeof( int32_t ), cudaMemcpyHostToDevice );
+  //cudaMemset( d_solution, 0xff, 84 );
+  //cudaMemcpy( d_challenge_hash, challenge_target, 32, cudaMemcpyHostToDevice );
+  //cudaMemcpy( d_hash_prefix, hash_prefix, 52, cudaMemcpyHostToDevice );
 }
 
 __host__
 bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
 {
   h_done[0] = 0;
+  new_input = false;
 
   cudaMemcpy( d_done, h_done, sizeof( int32_t ), cudaMemcpyHostToDevice );
   cudaMemset( d_solution, 0xff, 84 );
@@ -545,9 +541,10 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
   clock_t t = clock() - start;
 
   // maybe breaking the control codes into macros is a good idea . . .
-  printf( "\x1b[1A\x1b[37mHash Rate: \x1b[38;5;27m%*.2f \x1b[37mMH/second\tTotal hashes: \x1b[38;5;27m%*llu\x1b[0m\n",
+  printf( "\x1b[2A\x1b[37mHash Rate: \x1b[38;5;27m%*.2f \x1b[37mMH/second\x1b[K\n"
+		  "Hashes this round: \x1b[38;5;27m%*llu\x1b[0m\x1b[K\n",
            7, ( (double)printable_hashrate_cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
-           12, printable_hashrate_cnt );
+           12, cnt );
   return ( h_done[0] == 1 );
 }
 

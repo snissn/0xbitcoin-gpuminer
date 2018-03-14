@@ -163,8 +163,7 @@ module.exports = {
     },
 
     //async submitNewMinedBlock(addressFrom, solution_number, digest_bytes, challenge_number)
-    async submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest_bytes, challenge_number, target, difficulty)
-    {
+    async submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest_bytes, challenge_number, target, difficulty) {
         this.miningLogger.appendToStandardLog("Giving mined solution to network interface " + challenge_number);
 
         this.networkInterface.queueMiningSolution(addressFrom, minerEthAddress, solution_number, digest_bytes, challenge_number, target, difficulty)
@@ -192,16 +191,16 @@ module.exports = {
             const digest = web3utils.sha3(challenge_number + addressFrom.substring(2) + solution_number.substring(2));
             const digestBigNumber = web3utils.toBN(digest);
             if (digestBigNumber.lte(miningParameters.miningTarget)) {
-                console.log('\x1b[2ASubmit mined solution for challenge ', challenge_number, '\n\n');
+                //console.log('\x1b[2ASubmit mined solution for challenge ', challenge_number);
                 //  self.submitNewMinedBlock(minerEthAddress, solution_number, digest, challenge_number);
-                self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest, challenge_number, target, difficulty)
-            } else {
-//                console.error("Verification failed!\n",
-//                    "challenge: ", challenge_number, "\n",
-//                    "address: ", minerEthAddress, "\n",
-//                    "solution: ", solution_number, "\n",
-//                    "digest: ", digestBigNumber, "\n",
-//                    "target: ", target);
+                return self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest, challenge_number, target, difficulty)
+                //            } else {
+                //                console.error("Verification failed!\n",
+                //                    "challenge: ", challenge_number, "\n",
+                //                    "address: ", minerEthAddress, "\n",
+                //                    "solution: ", solution_number, "\n",
+                //                    "digest: ", digestBigNumber, "\n",
+                //                    "target: ", target);
             }
         }
 
