@@ -367,7 +367,7 @@ __global__ __launch_bounds__( TPB52, 1 )
 #else
 __global__ __launch_bounds__( TPB50, 2 )
 #endif
-void gpu_mine( unsigned char * init_message, unsigned char *challenge_hash, int *done, unsigned char * hash_prefix, int now, unsigned long long cnt, unsigned int threads )
+  void gpu_mine( unsigned char* init_message, unsigned char* challenge_hash, unsigned char* device_solution, int* done, unsigned char* hash_prefix, int now, unsigned long long cnt, unsigned int threads )
 {
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
   unsigned char message[84];
@@ -404,7 +404,7 @@ void gpu_mine( unsigned char * init_message, unsigned char *challenge_hash, int 
       if( done[0] != 1 )
       {
         done[0] = 1;
-        device_solution = message;
+        memcpy( device_solution, message, str_len );
       }
       return;
     }
@@ -459,10 +459,11 @@ __host__ void gpu_init()
 
   h_message = (unsigned char*)malloc( 84 );
 
-  cudaMalloc( &d_done, sizeof( int ) );
-  cudaMalloc( &d_solution, 84 ); // solution
-  cudaMalloc( &d_challenge_hash, 32 );
-  cudaMalloc( &d_hash_prefix, 52 );
+  cudaMalloc( (void**)&d_done, sizeof( int ) );
+  cudaMalloc( (void**)&d_solution, 84 ); // solution
+  cudaMalloc( (void**)&d_challenge_hash, 32 );
+  cudaMalloc( (void**)&d_hash_prefix, 52 );
+  cudaMallocHost( (void**)&h_message, 84 );
 
   //cnt = 0;
   printable_hashrate_cnt = 0;
@@ -485,10 +486,10 @@ __host__ void resetHashCount()
 
 __host__ void update_mining_inputs( unsigned char * challenge_target, unsigned char * hash_prefix ) // can accept challenge
 {
-  //cudaMalloc( &d_done, sizeof( int ) );
-  //cudaMalloc( &d_solution, 84 ); // solution
-  //cudaMalloc( &d_challenge_hash, 32 );
-  //cudaMalloc( &d_hash_prefix, 52 );
+  //cudaMalloc( (void**)&d_done, sizeof( int ) );
+  //cudaMalloc( (void**)&d_solution, 84 ); // solution
+  //cudaMalloc( (void**)&d_challenge_hash, 32 );
+  //cudaMalloc( (void**)&d_hash_prefix, 52 );
 
   cudaMemcpy( d_done, h_done, sizeof( int ), cudaMemcpyHostToDevice );
   cudaMemset( d_solution, 0xff, 84 );
@@ -525,21 +526,22 @@ __host__ bool find_message( unsigned char * challenge_target, unsigned char * ha
   const dim3 block( tpb );
 
   unsigned char init_message[84];
-  unsigned char * device_init_message;
+  // cudaMallocHost( (void**)&init_message, 84 );
+  unsigned char* device_init_message;
 
   for(int i_rand = 0; i_rand < 84; i_rand++){
-    init_message[i_rand] = rand() % 256;
+    init_message[i_rand] = (unsigned char)rand() % 256;
   }
-  cudaMalloc( &device_init_message, 84 );
+  cudaMalloc( (void**)&device_init_message, 84 );
   cudaMemcpy( device_init_message, init_message, 84, cudaMemcpyHostToDevice );
 
-  gpu_mine <<< grid, block >>> (device_init_message, d_challenge_hash, d_solution, d_done, d_hash_prefix, now, cnt, threads );
-  //cudaError_t cudaerr = cudaDeviceSynchronize();
-  //if( cudaerr != cudaSuccess )
-  //{
-  //  printf( "kernel launch failed with error %d: %s.\n", cudaerr, cudaGetErrorString( cudaerr ) );
-  //  exit( EXIT_FAILURE );
-  //}
+  gpu_mine <<< grid, block >>> ( device_init_message, d_challenge_hash, d_solution, d_done, d_hash_prefix, now, cnt, threads );
+  cudaError_t cudaerr = cudaDeviceSynchronize();
+  if( cudaerr != cudaSuccess )
+  {
+   printf( "kernel launch failed with error %d: %s.\n", cudaerr, cudaGetErrorString( cudaerr ) );
+   exit( EXIT_FAILURE );
+  }
   cnt += threads;
   printable_hashrate_cnt += threads;
 
@@ -549,7 +551,7 @@ __host__ bool find_message( unsigned char * challenge_target, unsigned char * ha
   clock_t t = clock() - start;
 
   // maybe breaking the control codes into macros is a good idea . . .
-  printf( "\x1b[37mHash Rate: \x1b[38;5;27m%*.2f \x1b[37mMH/second\tTotal hashes: \x1b[38;5;27m%*llu\x1b[0m\x1b[1A\n",
+  printf( "\x1b[1A\x1b[37mHash Rate: \x1b[38;5;27m%*.2f \x1b[37mMH/second\tTotal hashes: \x1b[38;5;27m%*llu\x1b[0m\n",
            7, ( (double)printable_hashrate_cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
            12, printable_hashrate_cnt );
   return ( h_done[0] == 1 );
@@ -563,5 +565,6 @@ __host__ void gpu_cleanup()
   cudaFree( d_solution );
   cudaFree( d_challenge_hash );
   cudaFree( d_hash_prefix );
-  free( h_message );
+  cudaFreeHost( h_message );
+  //free( h_message );
 }

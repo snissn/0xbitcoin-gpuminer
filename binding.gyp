@@ -37,7 +37,7 @@
                'process_outputs_as_sources': 0,
                'action': ['nvcc -cudart static --machine 64\
                           -c <(_inputs) -o <(_outputs)',
-                          '-gencode=arch=compute_61,code=compute_61',
+                          '-gencode=arch=compute_61,code=sm_61',
                           '-gencode=arch=compute_52,code=sm_52',
                           '-gencode=arch=compute_35,code=sm_35',
                           '-I', 'cpp/hybridminer'],
