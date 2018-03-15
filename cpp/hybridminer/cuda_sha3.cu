@@ -101,14 +101,12 @@ __device__ int compare_hash( unsigned char *target, unsigned char *hash, int len
   return (unsigned char)( hash[i] ) < (unsigned char)( target[i] );
 }
 
-__device__ void keccak( const unsigned char *message, int message_len, unsigned char *output, int output_len )
+__device__ void keccak( uint64_t * state, const unsigned char *message, int message_len )
 {
-  uint64_t state[25];
   uint8_t *temp_message = (uint8_t *)message;
   const int rsize = 136;
   const int rsize_byte = 17;
 
-  memset( state, 0, sizeof( state ) );
 
   // last block and padding
   memcpy( temp_message, message, message_len );
@@ -341,7 +339,6 @@ __device__ void keccak( const unsigned char *message, int message_len, unsigned 
     //  Iota
     state[0] ^= RC[i];
   }
-  memcpy( output, state, output_len );
 }
 
 // hash length is 256 bits
@@ -353,9 +350,10 @@ __global__ __launch_bounds__( TPB50, 2 )
 void gpu_mine( unsigned char * init_message, unsigned char *challenge_hash, char * device_solution, int *d_done, const unsigned char * hash_prefix, int now, unsigned long long cnt, unsigned int threads )
 {
   const int output_len = 32;
-  unsigned char output[output_len];
+  unsigned char * output;
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
   unsigned char message[144];
+  uint64_t state[25];
   int str_len = 84;
 
   memcpy(message, init_message, 84);
@@ -378,7 +376,9 @@ void gpu_mine( unsigned char * init_message, unsigned char *challenge_hash, char
 #endif
     (uint64_t&)message[52] = nounce;
 
-    keccak( message, str_len, output, output_len );
+    memset( state, 0, sizeof( state ) );
+    keccak( state, message, str_len);
+    output = (unsigned char * ) state;
 
     int i = 0;
     for( i = 0; i < 32; i++ )
