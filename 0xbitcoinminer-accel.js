@@ -19,7 +19,8 @@ module.exports = {
     //  async init(web3, subsystem_command, vault, networkInterface, miningLogger)
     {
         process.on('exit', () => {
-            console.log("Process exiting... stopping miner");
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0mProcess exiting... stopping miner");
             CPPMiner.stop();
         });
 
@@ -38,7 +39,7 @@ module.exports = {
             CPPMiner.setHardwareType('cpu');
         }
 
-        console.log('\n')
+        //console.log('\n')
 
         //miningParameters
 
@@ -47,8 +48,9 @@ module.exports = {
             var eth_account = this.vault.getFullAccount();
 
             if (eth_account.accountType == "readOnly" || eth_account.privateKey == null || typeof eth_account.privateKey == 'undefined ') {
-                console.log('The account ', eth_account.address, ' does not have an associated private key.  Please select another account or mine to a pool.');
-                console.log('\n')
+                console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0mThe account", eth_account.address, 'does not have an associated private key. Please select another account or mine to a pool.');
+                //console.log('\n')
                 return;
             }
         } else if (this.miningStyle == "pool") {
@@ -56,12 +58,14 @@ module.exports = {
         }
 
         if (eth_account == null || eth_account.address == null) {
-            console.log("Please create a new account with 'account new' before solo mining.")
-            console.log('\n')
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0mPlease create a new account with 'account new' before solo mining.")
+            //console.log('\n')
             return false;
         } else {
-            console.log('Selected mining account:', '\n', eth_account.address);
-            console.log('\n')
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0mSelected mining account:\n\t", eth_account.address);
+            //console.log('\n')
         }
 
         ///this.mining = true;
@@ -76,7 +80,8 @@ module.exports = {
         console.log("Mining for  " + this.minerEthAddress);
 
         if (this.miningStyle != "pool") {
-            console.log("Gas price is " + this.vault.getGasPriceGwei() + ' gwei');
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0mGas price is" + this.vault.getGasPriceGwei() + 'gwei');
         }
 
         setInterval(() => { self.printMiningStats() }, PRINT_STATS_TIMEOUT);
@@ -132,7 +137,8 @@ module.exports = {
         if (this.challengeNumber != miningParameters.challengeNumber) {
             this.challengeNumber = miningParameters.challengeNumber
 
-            console.log("New challenge number: " + this.challengeNumber);
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0m New challenge received");
             CPPMiner.setChallengeNumber(this.challengeNumber);
             bResume = true;
         }
@@ -140,22 +146,24 @@ module.exports = {
         if (this.miningTarget == null || !this.miningTarget.eq(miningParameters.miningTarget)) {
             this.miningTarget = miningParameters.miningTarget
 
-            console.log("New mining target: 0x" + this.miningTarget.toString(16));
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0m New mining target received");
             CPPMiner.setDifficultyTarget("0x" + this.miningTarget.toString(16));
         }
 
         if (this.miningDifficulty != miningParameters.miningDifficulty) {
             this.miningDifficulty = miningParameters.miningDifficulty
 
-            console.log("New difficulty: " + this.miningDifficulty);
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0m New difficulty set", this.miningDifficulty);
         }
 
         if (bResume && !this.mining) {
-            console.log("Restarting mining operations");
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0m Restarting mining operations");
 
             try {
                 this.mineStuff(miningParameters);
-
             } catch (e) {
                 console.log(e)
             }
@@ -164,7 +172,7 @@ module.exports = {
 
     //async submitNewMinedBlock(addressFrom, solution_number, digest_bytes, challenge_number)
     async submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest_bytes, challenge_number, target, difficulty) {
-        this.miningLogger.appendToStandardLog("Giving mined solution to network interface " + challenge_number);
+        //this.miningLogger.appendToStandardLog("Giving mined solution to network interface " + challenge_number);
 
         this.networkInterface.queueMiningSolution(addressFrom, minerEthAddress, solution_number, digest_bytes, challenge_number, target, difficulty)
     },
@@ -191,16 +199,17 @@ module.exports = {
             const digest = web3utils.sha3(challenge_number + addressFrom.substring(2) + solution_number.substring(2));
             const digestBigNumber = web3utils.toBN(digest);
             if (digestBigNumber.lte(miningParameters.miningTarget)) {
-                //console.log('\x1b[2ASubmit mined solution for challenge ', challenge_number);
+                console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+							"]\x1b[0m Submitting sol", solution_number)//.substring(2,10));
                 //  self.submitNewMinedBlock(minerEthAddress, solution_number, digest, challenge_number);
                 return self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest, challenge_number, target, difficulty)
                 //            } else {
                 //                console.error("Verification failed!\n",
-                //                    "challenge: ", challenge_number, "\n",
-                //                    "address: ", minerEthAddress, "\n",
-                //                    "solution: ", solution_number, "\n",
-                //                    "digest: ", digestBigNumber, "\n",
-                //                    "target: ", target);
+                //                    "challenge:", challenge_number, "\n",
+                //                    "address:", minerEthAddress, "\n",
+                //                    "solution:", solution_number, "\n",
+                //                    "digest:", digestBigNumber, "\n",
+                //                    "target:", target);
             }
         }
 
@@ -225,7 +234,8 @@ module.exports = {
 
     setHardwareType(type) {
         hardwareType = type;
-        console.log('Set hardware type: ', type)
+        console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+					"]\x1b[0mSet hardware type:", type)
     },
 
     setNetworkInterface(netInterface) {

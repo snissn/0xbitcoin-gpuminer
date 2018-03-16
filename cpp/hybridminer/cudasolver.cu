@@ -244,15 +244,12 @@ CUDASolver::bytes_t CUDASolver::findSolution()
 
   do
   {
-    //cudaDeviceReset();
-    cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync );
-
     find_message( target_input, hash_prefix );
   } while( !h_done[0] );
 
-  for( int32_t i = 52; i < 84; i++ )
+  for( int32_t i = 0; i < 32; i++ )
   {
-    byte_solution[i - 52] = (uint8_t)h_message[i];
+    byte_solution[i] = (uint8_t)h_message[i];
   }
 
   // What are these even here for?

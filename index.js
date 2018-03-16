@@ -165,18 +165,18 @@ async function handleCommand(result) {
         console.log('"config list" - Show your current configuration')
         console.log('"config gasprice #" - Set the gasprice used to submit PoW to the token smartcontract ')
         //  console.log('"config cpu_threads #" - Set the number of CPU cores to use for mining ')
-        console.log('"config web3provider http://----:####" - Set the web3 provider url for submitting ethereum transactions ')
+        console.log('"config web3provider http://----:####" - Set the web3 provider url for submitting ethereum transactions')
 
         console.log('\n');
         console.log('"pool mine" - Begin mining into a pool')
         console.log('"pool mine cuda" - Begin mining into a pool using CUDA GPU')
         console.log('"pool mine opengl" - Begin mining into a pool using OPENGL GPU')
         console.log('"pool list" - List the selected mining pool')
-        console.log('"pool select http://####.com:####" - Select a pool to mine into ')
+        console.log('"pool select http://####.com:####" - Select a pool to mine into')
 
         console.log('\n');
-        console.log('"test mine" - Begin mining on Ropsten ')
-        console.log('"mine" - Begin mining ')
+        console.log('"test mine" - Begin mining on Ropsten')
+        console.log('"mine" - Begin mining')
         console.log('"mine cuda" - Begin mining using CUDA GPU')
         console.log('"mine opengl" - Begin mining using OPENGL GPU')
         //  console.log('\n')
