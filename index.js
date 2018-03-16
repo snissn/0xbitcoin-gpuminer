@@ -13,7 +13,7 @@ var web3 = new Web3();
 var running = true;
 
 function sigHandler(signal) {
-	process.stdout.print("\x1b[?1049l\x1b!p");
+	process.stdout.write("\x1b[?1049l\x1b!p");
 	process.exit(128 + signal)
 }
 
