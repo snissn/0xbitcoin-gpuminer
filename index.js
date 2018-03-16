@@ -12,11 +12,39 @@ var web3 = new Web3();
 
 var running = true;
 
+function sigHandler(signal) {
+	process.stdout.print("\x1b[?1049l\x1b!p");
+	process.exit(128 + signal)
+}
+
+process.on('SIGTERM', sigHandler);
+process.on('SIGINT', sigHandler);
+process.on('SIGBREAK', sigHandler);
+process.on('SIGHUP', sigHandler);
+process.on('SIGWINCH', (sig) => {
+	process.stdout.write("\x1b[5r\x1b[5;1f");
+});
+
+process.stdout.write( "\x1b[?1049h\x1b(0" );
+process.stdout.write( "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqk" );
+process.stdout.write( "\x1b[4;1fmqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqj" );
+process.stdout.write( "\x1b[2;1fx\x1b[2;28fx\x1b[2;56fx\x1b[2;80fx" );
+process.stdout.write( "\x1b[3;1fx\x1b[3;28fx\x1b[3;56fx\x1b[3;80fx" );
+process.stdout.write( "\x1b(B\x1b[2;2fChallenge:" );
+process.stdout.write( "\x1b[3;2fDifficulty:" );
+process.stdout.write( "\x1b[2;30fHashes" );
+process.stdout.write( "\x1b[2;76fSols" );
+process.stdout.write( "\x1b[3;76fMH/s" );
+process.stdout.write( "\x1b[1;58fv" + pjson.version );
+process.stdout.write( "\x1b[5r\x1b[?25l\x1b[5;1f" );
+
 console.log('Welcome to 0xBitcoin Miner!')
 console.log('Version: ', pjson.version)
 //console.log('\n')
 console.log('Type a command to get started.  Type "help" for a list of commands.')
 //console.log('\n')
+
+initPrompt();
 
 async function initPrompt() {
     var result = await promptForCommand();
@@ -26,7 +54,7 @@ async function initPrompt() {
 
 async function promptForCommand() {
     return new Promise(function (fulfilled, rejected) {
-        console.log('\n')
+        //console.log('')
         prompt.start();
         prompt.get(['command'], async function (err, result) {
             if (err) {
@@ -40,8 +68,6 @@ async function promptForCommand() {
     });
 }
 
-initPrompt();
-
 /*
 if (process.argv.length <= 2) {
 console. log("Please add a subsystem parameter (use 'npm run help' for help)");
@@ -49,8 +75,8 @@ process. exit(-1);
 }
 
 var subsystem_name =  process.argv[2] ;
-var subsystem_command =  process.argv[3] ;
-var subsystem_option =  process.argv[4] ;
+var subsystem_command = process.argv[3] ;
+var subsystem_option = process.argv[4] ;
 */
 
 async function handleCommand(result) {
@@ -148,33 +174,33 @@ async function handleCommand(result) {
 
     if (subsystem_name == 'help') {
         //console.log('\n\n')
-        console.log('--0xBitcoin Miner Help--\n')
+        console.log('--0xBitcoin Miner Help--')
         console.log('Available commands:\n')
 
-        console.log('\n');
-        console.log('"account new" - Create a new mining account ')
-        console.log('"account list" - List all mining accounts ')
-        console.log('"account select 0x####" - Select a primary mining account by address ')
-        console.log('"account balance" - List the ether and token balance of your selected account ')
+        //console.log('\n');
+        console.log('"account new" - Create a new mining account')
+        console.log('"account list" - List all mining accounts')
+        console.log('"account select 0x####" - Select a primary mining account by address')
+        console.log('"account balance" - List the ether and token balance of your selected account\n')
 
-        console.log('\n');
+        //console.log('\n');
         console.log('"contract list" - List the selected token contract to mine')
-        console.log('"contract select 0x####" - Select a PoW token contract to mine ')
+        console.log('"contract select 0x####" - Select a PoW token contract to mine\n')
 
-        console.log('\n');
+        //console.log('\n');
         console.log('"config list" - Show your current configuration')
         console.log('"config gasprice #" - Set the gasprice used to submit PoW to the token smartcontract ')
         //  console.log('"config cpu_threads #" - Set the number of CPU cores to use for mining ')
-        console.log('"config web3provider http://----:####" - Set the web3 provider url for submitting ethereum transactions')
+        console.log('"config web3provider http://----:####" - Set the web3 provider url for submitting ethereum transactions\n')
 
-        console.log('\n');
+        //console.log('\n');
         console.log('"pool mine" - Begin mining into a pool')
         console.log('"pool mine cuda" - Begin mining into a pool using CUDA GPU')
         console.log('"pool mine opengl" - Begin mining into a pool using OPENGL GPU')
         console.log('"pool list" - List the selected mining pool')
-        console.log('"pool select http://####.com:####" - Select a pool to mine into')
+        console.log('"pool select http://####.com:####" - Select a pool to mine into\n')
 
-        console.log('\n');
+        //console.log('\n');
         console.log('"test mine" - Begin mining on Ropsten')
         console.log('"mine" - Begin mining')
         console.log('"mine cuda" - Begin mining using CUDA GPU')

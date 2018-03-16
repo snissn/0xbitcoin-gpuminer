@@ -117,7 +117,8 @@ module.exports = {
             //give data to the c++ addon
             await this.updateCPUAddonParameters(miningParameters, miningStyle)
         } catch (e) {
-            console.log(e)
+            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+						"]\x1b[0m", e)
         }
 
         //keep on looping!
@@ -141,6 +142,8 @@ module.exports = {
 						"]\x1b[0m New challenge received");
             CPPMiner.setChallengeNumber(this.challengeNumber);
             bResume = true;
+			process.stdout.write("\x1b[s\x1b[2;13f\x1b[38;5;34m" + this.challengeNumber.substring(2, 10) +
+								 "\x1b[0m\x1b[u");
         }
 
         if (this.miningTarget == null || !this.miningTarget.eq(miningParameters.miningTarget)) {
@@ -156,6 +159,9 @@ module.exports = {
 
             console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
 						"]\x1b[0m New difficulty set", this.miningDifficulty);
+			process.stdout.write("\x1b[s\x1b[3;14f             \x1b[3;14f\x1b[38;5;34m" +
+								 this.miningDifficulty +
+								 "\x1b[0m\x1b[u");
         }
 
         if (bResume && !this.mining) {
@@ -165,7 +171,8 @@ module.exports = {
             try {
                 this.mineStuff(miningParameters);
             } catch (e) {
-                console.log(e)
+                console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+							"]\x1b[0m", e)
             }
         }
     },
@@ -223,7 +230,8 @@ module.exports = {
                 try {
                     verifyAndSubmit(sol);
                 } catch (e) {
-                    console.log(e)
+                    console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+								"]\x1b[0m", e)
                 }
             }
             self.mining = false;
