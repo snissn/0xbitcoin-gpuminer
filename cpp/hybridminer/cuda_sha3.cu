@@ -67,10 +67,11 @@ uint8_t* d_solution;
 uint8_t* d_challenge;
 uint8_t* d_hash_prefix;
 __constant__ uint8_t d_init_message[84];
+__constant__ uint8_t challenge[32];
 
 #define ROTL64(x, y) (((x) << (y)) | ((x) >> (64 - (y))))
 
-__device__ const uint64_t RC[24] = {
+__device__ __constant__ const uint64_t RC[24] = {
     0x0000000000000001, 0x0000000000008082, 0x800000000000808a,
     0x8000000080008000, 0x000000000000808b, 0x0000000080000001,
     0x8000000080008081, 0x8000000000008009, 0x000000000000008a,
@@ -81,25 +82,25 @@ __device__ const uint64_t RC[24] = {
     0x8000000000008080, 0x0000000080000001, 0x8000000080008008
 };
 
-__device__ const int32_t r[24] = {
+__device__ __constant__ const int32_t r[24] = {
     1,  3,  6,  10, 15, 21, 28, 36, 45, 55, 2,  14,
     27, 41, 56, 8,  25, 43, 62, 18, 39, 61, 20, 44
 };
 
-__device__ const int32_t piln[24] = {
+__device__ __constant__ const int32_t piln[24] = {
     10, 7,  11, 17, 18, 3, 5,  16, 8,  21, 24, 4,
     15, 23, 19, 13, 12, 2, 20, 14, 22, 9,  6,  1
 };
 
 __device__ __forceinline__
-int32_t compare_hash( uint8_t *target, uint8_t *hash )
+int32_t compare_hash( uint8_t *hash )
 {
   int32_t i = 0;
   for( i = 0; i < 52; i++ )
   {
-    if( hash[i] != target[i] ) break;
+    if( hash[i] != challenge[i] ) break;
   }
-  return hash[i] < target[i];
+  return hash[i] < challenge[i];
 }
 
 __device__
@@ -357,7 +358,7 @@ __global__ __launch_bounds__( TPB52, 1 )
 #else
 __global__ __launch_bounds__( TPB50, 2 )
 #endif
-  void gpu_mine( uint8_t* challenge, uint8_t* device_solution, int32_t* done, uint64_t cnt, uint32_t threads )
+  void gpu_mine( uint8_t* solution, int32_t* done, uint64_t cnt, uint32_t threads )
 {
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
   uint8_t message[144];
@@ -381,16 +382,15 @@ __global__ __launch_bounds__( TPB50, 2 )
 #endif
     (uint64_t&)(message[60]) = nounce;
 
-    const int32_t output_len = 32;
-    uint8_t output[output_len];
+    uint8_t output[32];
     keccak( message, output );
 
-    if( compare_hash( challenge, output ) )
+    if( compare_hash( output ) )
     {
       if( done[0] != 1 )
       {
         done[0] = 1;
-        memcpy( device_solution, &message[52], 32 );
+        memcpy( solution, &message[52], 32 );
       }
       return;
     }
@@ -473,7 +473,6 @@ void gpu_init()
 
   cudaMalloc( (void**)&d_done, sizeof( int32_t ) );
   cudaMalloc( (void**)&d_solution, 32 ); // solution
-  cudaMalloc( (void**)&d_challenge, 32 );
   cudaMallocHost( (void**)&h_message, 32 );
 
   //cnt = 0;
@@ -481,18 +480,6 @@ void gpu_init()
   print_counter = 0;
 
   gpu_initialized = true;
-
-  // printf( "\x1b[?1049h\x1b(0" );
-  // printf( "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqk" );
-  // printf( "\x1b[4;1fmqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqj" );
-  // printf( "\x1b[2;1fx\x1b[2;28fx\x1b[2;56fx\x1b[2;80fx" );
-  // printf( "\x1b[3;1fx\x1b[3;28fx\x1b[3;56fx\x1b[3;80fx" );
-  // printf( "\x1b(B\x1b[2;2fChallenge:" );
-  // printf( "\x1b[3;2fSubmitted:" );
-  // printf( "\x1b[3;40fHashes" );
-  // printf( "\x1b[2;62fDifficulty:" );
-  // printf( "\x1b[3;76fMH/s" );
-  // printf( "\x1b[5r\x1b[?25l\x1b[5;1f" );
 }
 
 __host__
@@ -509,7 +496,6 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
 
   cudaMemcpy( d_done, h_done, sizeof( int32_t ), cudaMemcpyHostToDevice );
   cudaMemset( d_solution, 0xff, 32 );
-  cudaMemcpy( d_challenge, challenge_target, 32, cudaMemcpyHostToDevice );
 
   uint32_t threads = 1UL << intensity;
 
@@ -535,18 +521,16 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
   for(int8_t i_rand = 60; i_rand < 84; i_rand++){
     init_message[i_rand] = (uint8_t)rand() % 256;
   }
-  //cudaMalloc( (void**)&d_init_message, 84 );
-  //cudaMemcpy( d_init_message, init_message, 84, cudaMemcpyHostToDevice );
   cudaMemcpyToSymbol( d_init_message, init_message, 84, 0, cudaMemcpyHostToDevice );
+  cudaMemcpyToSymbol( challenge, challenge_target, 32, 0, cudaMemcpyHostToDevice );
 
-  gpu_mine <<< grid, block >>> ( d_challenge, d_solution, d_done, cnt, threads );
+  gpu_mine <<< grid, block >>> ( d_solution, d_done, cnt, threads );
   // cudaError_t cudaerr = cudaDeviceSynchronize();
   // if( cudaerr != cudaSuccess )
   // {
   //  printf( "kernel launch failed with error %d: \x1b[38;5;196m%s.\x1b[0m\n", cudaerr, cudaGetErrorString( cudaerr ) );
   //  exit( EXIT_FAILURE );
   // }
-  //cudaFree( d_init_message );
   cnt += threads;
   printable_hashrate_cnt += threads;
 
@@ -574,6 +558,5 @@ void gpu_cleanup()
 
   cudaFree( d_done );
   cudaFree( d_solution );
-  cudaFree( d_challenge );
   cudaFreeHost( h_message );
 }
