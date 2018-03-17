@@ -171,8 +171,8 @@ void CUDASolver::updateGPULoop()
     // {
     //   hash_prefix[i + 32] = (uint8_t)m_address[i];
     // }
-    // update_mining_inputs( target_input, hash_prefix );
-    stop_solving();
+    update_mining_inputs();
+    // stop_solving();
   }
 }
 

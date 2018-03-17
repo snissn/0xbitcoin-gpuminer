@@ -96,7 +96,7 @@ __device__ __forceinline__
 int32_t compare_hash( uint8_t *hash )
 {
   int32_t i = 0;
-  for( i = 0; i < 52; i++ )
+  for( i = 0; i < 32; i++ )
   {
     if( hash[i] != challenge[i] ) break;
   }
@@ -109,11 +109,6 @@ void keccak( uint8_t *message, uint8_t *output )
   uint64_t state[25];
 
   memset( state, 0, sizeof( state ) );
-
-  // last block and padding
-  message[84] = 1;
-  memset( &message[85], 0, 51 );
-  message[135] |= 0x80;
 
   for( int32_t i = 0; i < 17; i++ )
   {
@@ -362,8 +357,7 @@ __global__ __launch_bounds__( TPB50, 2 )
 {
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
   uint8_t message[144];
-  // for( uint32_t i = 0; i < 84; i++ )
-  // 	  message[i] = init_message[i];
+
   memcpy(message, d_init_message, 84);
   message[84] = 1;
   memset( &message[85], 0, 51 );
@@ -427,10 +421,23 @@ void resetHashCount()
 __host__
 void gpu_init()
 {
-  if( gpu_initialized ) return;
+  if( !gpu_initialized )
+  {
+    cudaDeviceReset();
+    cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync );
 
-  cudaDeviceReset();
-  cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync );
+    cudaMalloc( (void**)&d_done, sizeof( int32_t ) );
+    cudaMalloc( (void**)&d_solution, 32 ); // solution
+    cudaMallocHost( (void**)&h_message, 32 );
+
+    (uint32_t&)(init_message[52]) = 014533075101u;
+    (uint32_t&)(init_message[56]) = 014132271150u;
+    for(int8_t i_rand = 60; i_rand < 84; i_rand++){
+      init_message[i_rand] = (uint8_t)rand() % 256;
+    }
+
+    gpu_initialized = true;
+  }
 
   cudaDeviceProp device_prop;
   int32_t device_count;
@@ -471,15 +478,11 @@ void gpu_init()
 
   //h_message = (uint8_t*)malloc( 84 );
 
-  cudaMalloc( (void**)&d_done, sizeof( int32_t ) );
-  cudaMalloc( (void**)&d_solution, 32 ); // solution
-  cudaMallocHost( (void**)&h_message, 32 );
-
   //cnt = 0;
   printable_hashrate_cnt = 0;
   print_counter = 0;
 
-  gpu_initialized = true;
+  if( new_input ) new_input = false;
 }
 
 __host__
@@ -492,7 +495,17 @@ __host__
 bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
 {
   h_done[0] = 0;
+  if( !gpu_initialized )
+  {
+    gpu_init();
+  }
   new_input = false;
+
+  for(int8_t i = 0; i < 52; i++){
+    init_message[i] = hash_prefix[i];
+  }
+  cudaMemcpyToSymbol( d_init_message, init_message, 84, cuda_device, cudaMemcpyHostToDevice );
+  cudaMemcpyToSymbol( challenge, challenge_target, 32, cuda_device, cudaMemcpyHostToDevice );
 
   cudaMemcpy( d_done, h_done, sizeof( int32_t ), cudaMemcpyHostToDevice );
   cudaMemset( d_solution, 0xff, 32 );
@@ -501,7 +514,7 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
 
   uint32_t tpb;
   dim3 grid;
-  if( compute_version > 500 )
+  if( compute_version > 550 )
   {
     tpb = TPB52;
     grid.x = ( threads + ( NPT*tpb ) - 1 ) / ( NPT*tpb );
@@ -513,17 +526,6 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
   }
   const dim3 block( tpb );
 
-  for(int8_t i = 0; i < 52; i++){
-    init_message[i] = hash_prefix[i];
-  }
-  (uint32_t&)(init_message[52]) = 014533075101u;
-  (uint32_t&)(init_message[56]) = 014132271150u;
-  for(int8_t i_rand = 60; i_rand < 84; i_rand++){
-    init_message[i_rand] = (uint8_t)rand() % 256;
-  }
-  cudaMemcpyToSymbol( d_init_message, init_message, 84, 0, cudaMemcpyHostToDevice );
-  cudaMemcpyToSymbol( challenge, challenge_target, 32, 0, cudaMemcpyHostToDevice );
-
   gpu_mine <<< grid, block >>> ( d_solution, d_done, cnt, threads );
   // cudaError_t cudaerr = cudaDeviceSynchronize();
   // if( cudaerr != cudaSuccess )
@@ -531,6 +533,7 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
   //  printf( "kernel launch failed with error %d: \x1b[38;5;196m%s.\x1b[0m\n", cudaerr, cudaGetErrorString( cudaerr ) );
   //  exit( EXIT_FAILURE );
   // }
+
   cnt += threads;
   printable_hashrate_cnt += threads;
 
@@ -544,9 +547,9 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
     print_counter++;
     // maybe breaking the control codes into macros is a good idea . . .
     printf( "\x1b[s\x1b[3;67f\x1b[38;5;221m%*.2f\x1b[0m\x1b[u"
-			"\x1b[s\x1b[3;29f\x1b[38;5;208m%*llu\x1b[0m\x1b[u",
-			8, ( (double)cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
-			26, printable_hashrate_cnt );
+            "\x1b[s\x1b[3;29f\x1b[38;5;208m%*llu\x1b[0m\x1b[u",
+            8, ( (double)printable_hashrate_cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
+            26, printable_hashrate_cnt );
   }
   return ( h_done[0] == 1 );
 }
@@ -554,6 +557,8 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
 __host__
 void gpu_cleanup()
 {
+  if( !gpu_initialized ) return;
+
   cudaThreadSynchronize();
 
   cudaFree( d_done );
