@@ -45,19 +45,19 @@ function initSignalHandlers() {
 		process.stdout.write("\x1b[5r\x1b[5;1f");
 	});
 	process.on('exit', (sig) => {
-		process.stdout.write("\x1b[?1049l\x1b!p");
+		process.stdout.write("\x1b[25h\x1b!p");
 	});
 }
 
 function drawLayout() {
-	process.stdout.write( "\x1b[?1049h\x1b(0" );
+	process.stdout.write( "\x1b[2J\x1b(0" );
 	process.stdout.write( "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqk" );
 	process.stdout.write( "\x1b[4;1fmqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqj" );
 	process.stdout.write( "\x1b[2;1fx\x1b[2;28fx\x1b[2;56fx\x1b[2;80fx" );
 	process.stdout.write( "\x1b[3;1fx\x1b[3;28fx\x1b[3;56fx\x1b[3;80fx" );
 	process.stdout.write( "\x1b(B\x1b[2;2fChallenge:" );
 	process.stdout.write( "\x1b[3;2fDifficulty:" );
-	process.stdout.write( "\x1b[2;30fHashes" );
+	process.stdout.write( "\x1b[2;30fHashes this round" );
 	process.stdout.write( "\x1b[2;76fSols" );
 	process.stdout.write( "\x1b[3;76fMH/s" );
 	process.stdout.write( "\x1b[1;58fv" + pjson.version );
