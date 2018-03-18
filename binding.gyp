@@ -69,7 +69,7 @@
 
           'libraries': [
             'cuda.lib',
-            'cudart.lib',
+            'cudart_static.lib',
             'cudasolver.o'
           ],
 
