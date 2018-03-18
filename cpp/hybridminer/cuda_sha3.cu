@@ -421,24 +421,6 @@ void resetHashCount()
 __host__
 void gpu_init()
 {
-  if( !gpu_initialized )
-  {
-    cudaDeviceReset();
-    cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync );
-
-    cudaMalloc( (void**)&d_done, sizeof( int32_t ) );
-    cudaMalloc( (void**)&d_solution, 32 ); // solution
-    cudaMallocHost( (void**)&h_message, 32 );
-
-    (uint32_t&)(init_message[52]) = 014533075101u;
-    (uint32_t&)(init_message[56]) = 014132271150u;
-    for(int8_t i_rand = 60; i_rand < 84; i_rand++){
-      init_message[i_rand] = (uint8_t)rand() % 256;
-    }
-
-    gpu_initialized = true;
-  }
-
   cudaDeviceProp device_prop;
   int32_t device_count;
   start = clock();
@@ -471,12 +453,28 @@ void gpu_init()
 
   cudaSetDevice( cuda_device );
 
+  if( !gpu_initialized )
+  {
+    cudaDeviceReset();
+    cudaSetDeviceFlags( cudaDeviceScheduleBlockingSync );
+
+    cudaMalloc( (void**)&d_done, sizeof( int32_t ) );
+    cudaMalloc( (void**)&d_solution, 32 ); // solution
+    cudaMallocHost( (void**)&h_message, 32 );
+
+    (uint32_t&)(init_message[52]) = 014533075101u;
+    (uint32_t&)(init_message[56]) = 014132271150u;
+    for(int8_t i_rand = 60; i_rand < 84; i_rand++){
+      init_message[i_rand] = (uint8_t)rand() % 256;
+    }
+
+    gpu_initialized = true;
+  }
+
   compute_version = device_prop.major * 100 + device_prop.minor * 10;
 
   // convert from GHz to hertz
   clock_speed = (int32_t)( device_prop.memoryClockRate * 1000 * 1000 );
-
-  //h_message = (uint8_t*)malloc( 84 );
 
   //cnt = 0;
   printable_hashrate_cnt = 0;
@@ -514,7 +512,7 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
 
   uint32_t tpb;
   dim3 grid;
-  if( compute_version > 550 )
+  if( compute_version > 500 )
   {
     tpb = TPB52;
     grid.x = ( threads + ( NPT*tpb ) - 1 ) / ( NPT*tpb );
