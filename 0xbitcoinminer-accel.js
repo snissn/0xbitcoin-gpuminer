@@ -14,6 +14,8 @@ const PRINT_STATS_TIMEOUT = 5000;
 const COLLECT_MINING_PARAMS_TIMEOUT = 4000;
 var hardwareType = 'cuda'; //default
 
+var solutionsSubmitted = 0;
+
 module.exports = {
     async init(web3, vault, miningLogger)
     //  async init(web3, subsystem_command, vault, networkInterface, miningLogger)
@@ -77,11 +79,11 @@ module.exports = {
 
         this.miningLogger.appendToStandardLog("Begin mining for " + this.minerEthAddress + " @ gasprice " + this.vault.getGasPriceGwei());
 
-        console.log("Mining for  " + this.minerEthAddress);
+        console.log("Mining for", this.minerEthAddress);
 
         if (this.miningStyle != "pool") {
             console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0mGas price is" + this.vault.getGasPriceGwei() + 'gwei');
+						"]\x1b[0mGas price is", this.vault.getGasPriceGwei(), 'gwei');
         }
 
         setInterval(() => { self.printMiningStats() }, PRINT_STATS_TIMEOUT);
@@ -138,8 +140,8 @@ module.exports = {
         if (this.challengeNumber != miningParameters.challengeNumber) {
             this.challengeNumber = miningParameters.challengeNumber
 
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0m New challenge received");
+            //console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
+			//			"]\x1b[0m New challenge received");
             CPPMiner.setChallengeNumber(this.challengeNumber);
             bResume = true;
 			process.stdout.write("\x1b[s\x1b[2;13f\x1b[38;5;34m" + this.challengeNumber.substring(2, 10) +
@@ -159,8 +161,7 @@ module.exports = {
 
             console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
 						"]\x1b[0m New difficulty set", this.miningDifficulty);
-			process.stdout.write("\x1b[s\x1b[3;14f             \x1b[3;14f\x1b[38;5;34m" +
-								 this.miningDifficulty +
+			process.stdout.write("\x1b[s\x1b[3;14f\x1b[38;5;34m" + this.miningDifficulty.toString().padEnd(7) +
 								 "\x1b[0m\x1b[u");
         }
 
@@ -206,9 +207,12 @@ module.exports = {
             const digest = web3utils.sha3(challenge_number + addressFrom.substring(2) + solution_number.substring(2));
             const digestBigNumber = web3utils.toBN(digest);
             if (digestBigNumber.lte(miningParameters.miningTarget)) {
+				solutionsSubmitted++;
                 console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-							"]\x1b[0m Submitting sol", solution_number)//.substring(2,10));
+							"]\x1b[0m Submitting solution #" + solutionsSubmitted);
                 //  self.submitNewMinedBlock(minerEthAddress, solution_number, digest, challenge_number);
+				process.stdout.write("\x1b[s\x1b[2;67f\x1b[38;5;221m" + solutionsSubmitted.toString().padStart(8) +
+								 "\x1b[0m\x1b[u");
                 return self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest, challenge_number, target, difficulty)
                 //            } else {
                 //                console.error("Verification failed!\n",

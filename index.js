@@ -60,6 +60,7 @@ function drawLayout() {
 	process.stdout.write( "\x1b[2;30fHashes this round" );
 	process.stdout.write( "\x1b[2;76fSols" );
 	process.stdout.write( "\x1b[3;76fMH/s" );
+	process.stdout.write( "\x1b[s\x1b[2;74f\x1b[38;5;221m0\x1b[0m\x1b[u" );
 	process.stdout.write( "\x1b[1;58fv" + pjson.version );
 	process.stdout.write( "\x1b[5r\x1b[?25l\x1b[5;1f" );
 }

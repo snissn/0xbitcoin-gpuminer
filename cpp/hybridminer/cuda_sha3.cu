@@ -83,7 +83,7 @@ __device__ __constant__ const uint64_t RC[24] = {
 };
 
 __device__ __forceinline__
-uint64_t xor5(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e)
+uint64_t xor5( uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e )
 {
   uint64_t output;
   asm( "xor.b64 %0, %1, %2;" : "=l"(output) : "l"(d) ,"l"(e) );
@@ -283,53 +283,53 @@ void keccak( uint8_t *message, uint8_t *output )
   //     for j = 0 to 25, j += 5
   //          state[j + i] ^= temp;
 #if __CUDA_ARCH__ >= 600
-  D[0] = ROTL64(C[1], 1) ^ C[4];
-  D[1] = ROTL64(C[2], 1) ^ C[0];
-  D[2] = ROTL64(C[3], 1) ^ C[1];
-  D[3] = ROTL64(C[4], 1) ^ C[2];
-  D[4] = ROTL64(C[0], 1) ^ C[3];
+  // D[0] = ROTL64(C[1], 1) ^ C[4];
+  // D[1] = ROTL64(C[2], 1) ^ C[0];
+  // D[2] = ROTL64(C[3], 1) ^ C[1];
+  // D[3] = ROTL64(C[4], 1) ^ C[2];
+  // D[4] = ROTL64(C[0], 1) ^ C[3];
 
-  for (x = 0; x < 5; x++) {
-    state[x]      ^= D[x];
-    state[x + 5]  ^= D[x];
-    state[x + 10] ^= D[x];
-    state[x + 15] ^= D[x];
-    state[x + 20] ^= D[x];
-  }
+  // for (x = 0; x < 5; x++) {
+  //   state[x]      ^= D[x];
+  //   state[x + 5]  ^= D[x];
+  //   state[x + 10] ^= D[x];
+  //   state[x + 15] ^= D[x];
+  //   state[x + 20] ^= D[x];
+  // }
+  state[10] ^= ROTL64(C[1], 1) ^ C[4];
+
+  D[0] = ROTL64(C[2], 1) ^ C[0];
+  state[ 6] ^= D[0];
+  state[16] ^= D[0];
+
+  D[0] = ROTL64(C[3], 1) ^ C[1];
+  state[12] ^= D[0];
+  state[22] ^= D[0];
+
+  D[0] = ROTL64(C[4], 1) ^ C[2];
+  state[ 3] ^= D[0];
+  state[18] ^= D[0];
+
+  D[0] = ROTL64(C[0], 1) ^ C[3];
+  state[ 9] ^= D[0];
+  state[24] ^= D[0];
 #else
-  D = ROTL64(C[1], 1) ^ C[4];
-  state[ 0] ^= D;
-  state[ 5] ^= D;
-  state[10] ^= D;
-  state[15] ^= D;
-  state[20] ^= D;
+  state[10] ^= ROTL64(C[1], 1) ^ C[4];
 
   D = ROTL64(C[2], 1) ^ C[0];
-  state[ 1] ^= D;
   state[ 6] ^= D;
-  state[11] ^= D;
   state[16] ^= D;
-  state[21] ^= D;
 
   D = ROTL64(C[3], 1) ^ C[1];
-  state[ 2] ^= D;
-  state[ 7] ^= D;
   state[12] ^= D;
-  state[17] ^= D;
   state[22] ^= D;
 
   D = ROTL64(C[4], 1) ^ C[2];
   state[ 3] ^= D;
-  state[ 8] ^= D;
-  state[13] ^= D;
   state[18] ^= D;
-  state[23] ^= D;
 
   D = ROTL64(C[0], 1) ^ C[3];
-  state[ 4] ^= D;
   state[ 9] ^= D;
-  state[14] ^= D;
-  state[19] ^= D;
   state[24] ^= D;
 #endif
 
@@ -339,31 +339,15 @@ void keccak( uint8_t *message, uint8_t *output )
   //     C[0] = state[j];
   //     state[j] = ROTL64(state[], r[i]);
   //     temp = C[0];
-  C[0] = state[1];
   state[ 1] = ROTL64( state[ 6], 44 );
   state[ 6] = ROTL64( state[ 9], 20 );
   state[ 9] = ROTL64( state[22], 61 );
-  state[22] = ROTL64( state[14], 39 );
-  state[14] = ROTL64( state[20], 18 );
-  state[20] = ROTL64( state[ 2], 62 );
   state[ 2] = ROTL64( state[12], 43 );
-  state[12] = ROTL64( state[13], 25 );
-  state[13] = ROTL64( state[19],  8 );
-  state[19] = ROTL64( state[23], 56 );
-  state[23] = ROTL64( state[15], 41 );
-  state[15] = ROTL64( state[ 4], 27 );
   state[ 4] = ROTL64( state[24], 14 );
-  state[24] = ROTL64( state[21],  2 );
-  state[21] = ROTL64( state[ 8], 55 );
   state[ 8] = ROTL64( state[16], 45 );
-  state[16] = ROTL64( state[ 5], 36 );
   state[ 5] = ROTL64( state[ 3], 28 );
   state[ 3] = ROTL64( state[18], 21 );
-  state[18] = ROTL64( state[17], 15 );
-  state[17] = ROTL64( state[11], 10 );
-  state[11] = ROTL64( state[ 7],  6 );
   state[ 7] = ROTL64( state[10],  3 );
-  state[10] = ROTL64( C[0], 1 );
 
   //  Chi
   // for j = 0 to 25, j += 5
