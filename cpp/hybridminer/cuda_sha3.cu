@@ -67,7 +67,6 @@ uint8_t* d_solution;
 uint8_t* d_challenge;
 uint8_t* d_hash_prefix;
 __constant__ uint8_t d_init_message[84];
-__constant__ uint8_t challenge[32];
 
 #define ROTL64(x, y) (((x) << (y)) | ((x) >> (64 - (y))))
 
@@ -83,6 +82,21 @@ __device__ __constant__ const uint64_t RC[24] = {
 };
 
 __device__ __forceinline__
+uint64_t bswap_64( uint64_t x )
+{
+	uint64_t result;
+	//result = __byte_perm((uint32_t) x, 0, 0x0123);
+	//return (result << 32) + __byte_perm(_HIDWORD(x), 0, 0x0123);
+	asm( "{ .reg .b32 x, y;"
+		   "mov.b64 {x,y}, %1;"
+		   "prmt.b32 x, x, 0, 0x0123;"
+		   "prmt.b32 y, y, 0, 0x0123;"
+		   "mov.b64 %0, {y,x};"
+	     "}" : "=l"(result): "l"(x));
+	return result;
+}
+
+__device__ __forceinline__
 uint64_t xor5( uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e )
 {
   uint64_t output;
@@ -93,19 +107,8 @@ uint64_t xor5( uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e )
   return output;
 }
 
-__device__ __forceinline__
-int32_t compare_hash( uint8_t *hash )
-{
-  int32_t i = 0;
-  for( i = 0; i < 32; i++ )
-  {
-    if( hash[i] != challenge[i] ) break;
-  }
-  return hash[i] < challenge[i];
-}
-
 __device__
-void keccak( uint8_t *message, uint8_t *output )
+bool keccak( uint8_t *message, uint64_t target )
 {
   uint64_t state[25];
 
@@ -132,7 +135,6 @@ void keccak( uint8_t *message, uint8_t *output )
     for (x = 0; x < 5; x++) {
       C[x] = xor5( state[x], state[x + 5], state[x + 10], state[x + 15], state[x + 20] );
     }
-
 
     // for i = 0 to 5
     //     temp = C[(i + 4) % 5] ^ ROTL64(C[(i + 1) % 5], 1);
@@ -270,109 +272,23 @@ void keccak( uint8_t *message, uint8_t *output )
     //  Iota
     state[0] ^= RC[i];
   }
-
-  // Theta
-  // for i = 0 to 5
-  //    C[i] = state[i] ^ state[i + 5] ^ state[i + 10] ^ state[i + 15] ^ state[i + 20];
   for (x = 0; x < 5; x++) {
-      C[x] = xor5( state[x], state[x + 5], state[x + 10], state[x + 15], state[x + 20] );
+    C[x] = xor5( state[x], state[x + 5], state[x + 10], state[x + 15], state[x + 20] );
   }
 
-  // for i = 0 to 5
-  //     temp = C[(i + 4) % 5] ^ ROTL64(C[(i + 1) % 5], 1);
-  //     for j = 0 to 25, j += 5
-  //          state[j + i] ^= temp;
-#if __CUDA_ARCH__ >= 600
-  // D[0] = ROTL64(C[1], 1) ^ C[4];
-  // D[1] = ROTL64(C[2], 1) ^ C[0];
-  // D[2] = ROTL64(C[3], 1) ^ C[1];
-  // D[3] = ROTL64(C[4], 1) ^ C[2];
-  // D[4] = ROTL64(C[0], 1) ^ C[3];
+  state[ 0] ^= ROTL64(C[1], 1) ^ C[4];
+  state[ 6] ^= ROTL64(C[2], 1) ^ C[0];
+  state[12] ^= ROTL64(C[3], 1) ^ C[1];
 
-  // for (x = 0; x < 5; x++) {
-  //   state[x]      ^= D[x];
-  //   state[x + 5]  ^= D[x];
-  //   state[x + 10] ^= D[x];
-  //   state[x + 15] ^= D[x];
-  //   state[x + 20] ^= D[x];
-  // }
-  state[10] ^= ROTL64(C[1], 1) ^ C[4];
-
-  D[0] = ROTL64(C[2], 1) ^ C[0];
-  state[ 6] ^= D[0];
-  state[16] ^= D[0];
-
-  D[0] = ROTL64(C[3], 1) ^ C[1];
-  state[12] ^= D[0];
-  state[22] ^= D[0];
-
-  D[0] = ROTL64(C[4], 1) ^ C[2];
-  state[ 3] ^= D[0];
-  state[18] ^= D[0];
-
-  D[0] = ROTL64(C[0], 1) ^ C[3];
-  state[ 9] ^= D[0];
-  state[24] ^= D[0];
-#else
-  state[10] ^= ROTL64(C[1], 1) ^ C[4];
-
-  D = ROTL64(C[2], 1) ^ C[0];
-  state[ 6] ^= D;
-  state[16] ^= D;
-
-  D = ROTL64(C[3], 1) ^ C[1];
-  state[12] ^= D;
-  state[22] ^= D;
-
-  D = ROTL64(C[4], 1) ^ C[2];
-  state[ 3] ^= D;
-  state[18] ^= D;
-
-  D = ROTL64(C[0], 1) ^ C[3];
-  state[ 9] ^= D;
-  state[24] ^= D;
-#endif
-
-  // Rho Pi
-  // for i = 0 to 24
-  //     j = piln[i];
-  //     C[0] = state[j];
-  //     state[j] = ROTL64(state[], r[i]);
-  //     temp = C[0];
   state[ 1] = ROTL64( state[ 6], 44 );
-  state[ 6] = ROTL64( state[ 9], 20 );
-  state[ 9] = ROTL64( state[22], 61 );
   state[ 2] = ROTL64( state[12], 43 );
-  state[ 4] = ROTL64( state[24], 14 );
-  state[ 8] = ROTL64( state[16], 45 );
-  state[ 5] = ROTL64( state[ 3], 28 );
-  state[ 3] = ROTL64( state[18], 21 );
-  state[ 7] = ROTL64( state[10],  3 );
 
-  //  Chi
-  // for j = 0 to 25, j += 5
-  //     for i = 0 to 5
-  //         C[i] = state[j + i];
-  //     for i = 0 to 5
-  //         state[j + 1] ^= (~C[(i + 1) % 5]) & C[(i + 2) % 5];
-  C[0] = state[0];
-  C[1] = state[1];
-  state[0] ^= ( ~state[1] ) & state[2];
-  state[1] ^= ( ~state[2] ) & state[3];
-  state[2] ^= ( ~state[3] ) & state[4];
-  state[3] ^= ( ~state[4] ) & C[0];
-  state[4] ^= ( ~C[0] ) & C[1];
+  state[ 0] ^= ( ~state[1] ) & state[2];
 
-  C[0] = state[5];
-  state[5] ^= ( ~state[6] ) & state[7];
-  state[6] ^= ( ~state[7] ) & state[8];
-  state[7] ^= ( ~state[8] ) & state[9];
-  state[8] ^= ( ~state[9] ) & C[0];
-
-  //  Iota
   state[0] ^= RC[23];
 
-  memcpy( output, state, 32 );
+  return bswap_64( state[0] ) <= target;
+  // memcpy( output, state, 32 );
 }
 
 // hash length is 256 bits
@@ -381,7 +297,7 @@ __global__ __launch_bounds__( TPB52, 1 )
 #else
 __global__ __launch_bounds__( TPB50, 2 )
 #endif
-  void gpu_mine( uint8_t* solution, int32_t* done, uint64_t cnt, uint32_t threads )
+void gpu_mine( uint8_t* solution, int32_t* done, uint64_t cnt, uint32_t threads, uint64_t target )
 {
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
   uint8_t message[144];
@@ -391,7 +307,6 @@ __global__ __launch_bounds__( TPB50, 2 )
   memset( &message[85], 0, 51 );
   message[135] |= 0x80;
 
-  //uint2 state[25], t[5], v, w, u[5];
 #if __CUDA_ARCH__ > 500
   uint64_t step = gridDim.x * blockDim.x;
   uint64_t maxNonce = cnt + threads;
@@ -404,14 +319,11 @@ __global__ __launch_bounds__( TPB50, 2 )
 #endif
     (uint64_t&)(message[60]) = nounce;
 
-    uint8_t output[32];
-    keccak( message, output );
-
-    if( compare_hash( output ) )
+    if( keccak( message, target ) )
     {
-      if( done[0] != 1 )
+	  const uint32_t temp = atomicExch( &done[0], thread );
+      if( done[0] == thread )
       {
-        done[0] = 1;
         memcpy( solution, &message[52], 32 );
       }
       return;
@@ -422,7 +334,7 @@ __global__ __launch_bounds__( TPB50, 2 )
 __host__
 void stop_solving()
 {
-  h_done[0] = 1;
+  h_done[0] = 0xff;
 }
 
 __host__
@@ -518,7 +430,7 @@ void update_mining_inputs()
 }
 
 __host__
-bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
+bool find_message( uint64_t target, uint8_t * hash_prefix )
 {
   h_done[0] = 0;
   if( !gpu_initialized )
@@ -531,7 +443,6 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
     init_message[i] = hash_prefix[i];
   }
   cudaMemcpyToSymbol( d_init_message, init_message, 84, cuda_device, cudaMemcpyHostToDevice );
-  cudaMemcpyToSymbol( challenge, challenge_target, 32, cuda_device, cudaMemcpyHostToDevice );
 
   cudaMemcpy( d_done, h_done, sizeof( int32_t ), cudaMemcpyHostToDevice );
   cudaMemset( d_solution, 0xff, 32 );
@@ -552,7 +463,7 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
   }
   const dim3 block( tpb );
 
-  gpu_mine <<< grid, block >>> ( d_solution, d_done, cnt, threads );
+  gpu_mine <<< grid, block >>> ( d_solution, d_done, cnt, threads, target );
   // cudaError_t cudaerr = cudaDeviceSynchronize();
   // if( cudaerr != cudaSuccess )
   // {
@@ -577,7 +488,7 @@ bool find_message( uint8_t * challenge_target, uint8_t * hash_prefix )
             8, ( (double)printable_hashrate_cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
             26, printable_hashrate_cnt );
   }
-  return ( h_done[0] == 1 );
+  return ( h_done[0] != 0 );
 }
 
 __host__

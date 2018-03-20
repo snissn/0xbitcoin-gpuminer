@@ -3,6 +3,7 @@ var solidityHelper = require('./solidity-helper')
 var leftpad = require('leftpad');
 const BN = require('bn.js');
 var debugLogger = require('./lib/debug-logger')
+const miningLogger = require("./lib/mining-logger");
 var tokenContractJSON = require('./contracts/_0xBitcoinToken.json');
 var CPPMiner = require('./build/Release/hybridminer');
 
@@ -21,8 +22,7 @@ module.exports = {
     //  async init(web3, subsystem_command, vault, networkInterface, miningLogger)
     {
         process.on('exit', () => {
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0mProcess exiting... stopping miner");
+            miningLogger.print("Process exiting... stopping miner");
             CPPMiner.stop();
         });
 
@@ -50,8 +50,7 @@ module.exports = {
             var eth_account = this.vault.getFullAccount();
 
             if (eth_account.accountType == "readOnly" || eth_account.privateKey == null || typeof eth_account.privateKey == 'undefined ') {
-                console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0mThe account", eth_account.address, 'does not have an associated private key. Please select another account or mine to a pool.');
+                miningLogger.print("The account", eth_account.address, 'does not have an associated private key. Please select another account or mine to a pool.');
                 //console.log('\n')
                 return;
             }
@@ -60,13 +59,11 @@ module.exports = {
         }
 
         if (eth_account == null || eth_account.address == null) {
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0mPlease create a new account with 'account new' before solo mining.")
+            miningLogger.print("Please create a new account with 'account new' before solo mining.")
             //console.log('\n')
             return false;
         } else {
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0mSelected mining account:\n\t", eth_account.address);
+            miningLogger.print("Selected mining account:\n\t", eth_account.address);
             //console.log('\n')
         }
 
@@ -79,11 +76,10 @@ module.exports = {
 
         this.miningLogger.appendToStandardLog("Begin mining for " + this.minerEthAddress + " @ gasprice " + this.vault.getGasPriceGwei());
 
-        console.log("Mining for", this.minerEthAddress);
+        miningLogger.print("Mining for", this.minerEthAddress);
 
         if (this.miningStyle != "pool") {
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0mGas price is", this.vault.getGasPriceGwei(), 'gwei');
+            miningLogger.print("Gas price is", this.vault.getGasPriceGwei(), 'gwei');
         }
 
         setInterval(() => { self.printMiningStats() }, PRINT_STATS_TIMEOUT);
@@ -100,7 +96,7 @@ module.exports = {
     },
 
     async collectMiningParameters(minerEthAddress, miningParameters, miningStyle) {
-        //    console.log('collect parameters.. ')
+        //    miningLogger.print('collect parameters.. ')
         var self = this;
 
         try {
@@ -110,7 +106,7 @@ module.exports = {
                 var parameters = await this.networkInterface.collectMiningParameters();
             }
 
-            //console.log('collected mining params ', parameters)
+            //miningLogger.print('collected mining params ', parameters)
             miningParameters.miningDifficulty = parameters.miningDifficulty;
             miningParameters.challengeNumber = parameters.challengeNumber;
             miningParameters.miningTarget = parameters.miningTarget;
@@ -119,8 +115,7 @@ module.exports = {
             //give data to the c++ addon
             await this.updateCPUAddonParameters(miningParameters, miningStyle)
         } catch (e) {
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0m", e)
+            miningLogger.print(e)
         }
 
         //keep on looping!
@@ -140,8 +135,7 @@ module.exports = {
         if (this.challengeNumber != miningParameters.challengeNumber) {
             this.challengeNumber = miningParameters.challengeNumber
 
-            //console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-			//			"]\x1b[0m New challenge received");
+            //miningLogger.print("New challenge received");
             CPPMiner.setChallengeNumber(this.challengeNumber);
             bResume = true;
 			process.stdout.write("\x1b[s\x1b[2;13f\x1b[38;5;34m" + this.challengeNumber.substring(2, 10) +
@@ -151,29 +145,26 @@ module.exports = {
         if (this.miningTarget == null || !this.miningTarget.eq(miningParameters.miningTarget)) {
             this.miningTarget = miningParameters.miningTarget
 
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0m New mining target received");
-            CPPMiner.setDifficultyTarget("0x" + this.miningTarget.toString(16));
+            miningLogger.print("New mining target received");
+            CPPMiner.setDifficultyTarget("0x" + this.miningTarget.toString(16, 64));
         }
 
         if (this.miningDifficulty != miningParameters.miningDifficulty) {
             this.miningDifficulty = miningParameters.miningDifficulty
 
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0m New difficulty set", this.miningDifficulty);
+            miningLogger.print("New difficulty set", this.miningDifficulty);
 			process.stdout.write("\x1b[s\x1b[3;14f\x1b[38;5;34m" + this.miningDifficulty.toString().padEnd(7) +
 								 "\x1b[0m\x1b[u");
+//			CPPMiner.setDifficulty( parseInt( this.miningTarget.toString(16, 64).substring(0, 16), 16 ) );
         }
 
         if (bResume && !this.mining) {
-            console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-						"]\x1b[0m Restarting mining operations");
+            miningLogger.print("Restarting mining operations");
 
             try {
                 this.mineStuff(miningParameters);
             } catch (e) {
-                console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-							"]\x1b[0m", e)
+                miningLogger.print(e)
             }
         }
     },
@@ -204,23 +195,25 @@ module.exports = {
 
         const verifyAndSubmit = (solution_number) => {
             const challenge_number = miningParameters.challengeNumber;
-            const digest = web3utils.sha3(challenge_number + addressFrom.substring(2) + solution_number.substring(2));
+            const digest = web3utils.soliditySha3(challenge_number,
+												  addressFrom.substring(2),
+												  solution_number);
             const digestBigNumber = web3utils.toBN(digest);
             if (digestBigNumber.lte(miningParameters.miningTarget)) {
 				solutionsSubmitted++;
-                console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-							"]\x1b[0m Submitting solution #" + solutionsSubmitted);
+                miningLogger.print("Submitting solution #" + solutionsSubmitted);
                 //  self.submitNewMinedBlock(minerEthAddress, solution_number, digest, challenge_number);
 				process.stdout.write("\x1b[s\x1b[2;67f\x1b[38;5;221m" + solutionsSubmitted.toString().padStart(8) +
 								 "\x1b[0m\x1b[u");
-                return self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number, digest, challenge_number, target, difficulty)
-                //            } else {
-                //                console.error("Verification failed!\n",
-                //                    "challenge:", challenge_number, "\n",
-                //                    "address:", minerEthAddress, "\n",
-                //                    "solution:", solution_number, "\n",
-                //                    "digest:", digestBigNumber, "\n",
-                //                    "target:", target);
+                return self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number,
+												digest, challenge_number, target, difficulty)
+            //} else {
+            //    console.error("Verification failed!\n",
+            //                  "challenge:", challenge_number, "\n",
+            //                  "address:", addressFrom, "\n",
+            //                  "solution:", solution_number, "\n",
+            //                  "digest:", digest, "\n",
+            //                  "target:", miningParameters.miningTarget);
             }
         }
 
@@ -234,8 +227,7 @@ module.exports = {
                 try {
                     verifyAndSubmit(sol);
                 } catch (e) {
-                    console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-								"]\x1b[0m", e)
+                    miningLogger.print(e)
                 }
             }
             self.mining = false;
@@ -246,8 +238,7 @@ module.exports = {
 
     setHardwareType(type) {
         hardwareType = type;
-        console.log("\x1b[38;5;249m[" + new Date().getTime()+ //toString("[yy-MM-dd HH:mm:ss.SSS]") +
-					"]\x1b[0mSet hardware type:", type)
+        miningLogger.print("Set hardware type:", type)
     },
 
     setNetworkInterface(netInterface) {
@@ -256,7 +247,7 @@ module.exports = {
 
     printMiningStats() {
         var hashes = CPPMiner.hashes();
-        //  console.log('hashes:', hashes )
-        //console.log('Hash rate: ' + parseInt(hashes / PRINT_STATS_TIMEOUT) + " kH/s");
+        //  miningLogger.print('hashes:', hashes )
+        //miningLogger.print('Hash rate: ' + parseInt(hashes / PRINT_STATS_TIMEOUT) + " kH/s");
     }
 }

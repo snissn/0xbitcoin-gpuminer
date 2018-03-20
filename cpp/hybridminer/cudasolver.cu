@@ -74,8 +74,11 @@ m_target( UINT256_LENGTH ),
 m_target_tmp( UINT256_LENGTH ),
 m_buffer( ADDRESS_LENGTH + 2 * UINT256_LENGTH ),
 m_buffer_tmp( ADDRESS_LENGTH + 2 * UINT256_LENGTH ), //this has something to do with updateBuffer
+m_diff( 0 ),
+m_diff_tmp( 0 ),
 m_buffer_ready( false ),
 m_target_ready( false ),
+m_diff_ready( false ),
 m_updated_gpu_inputs( false )
 {
 }
@@ -113,13 +116,23 @@ void CUDASolver::setTarget( std::string const& target )
 
   s_target = target;
 
+  m_diff = std::stoull( (t + target.substr(2)).substr( 0, 16 ), nullptr, 16 );
+
   // Double-buffer system, the trySolution() function will be blocked
   //  only when a change occurs.
-  {
-    std::lock_guard<std::mutex> g( m_target_mutex );
-    hexToBytes( "0x" + t + target.substr( 2 ), m_target_tmp );
-  }
-  m_target_ready = true;
+  // {
+  //   std::lock_guard<std::mutex> g( m_diff_mutex );
+  //   m_diff_tmp = diff );
+  // }
+  m_diff_ready = true;
+
+  // Double-buffer system, the trySolution() function will be blocked
+  //  only when a change occurs.
+  // {
+  //   std::lock_guard<std::mutex> g( m_target_mutex );
+  //   hexToBytes( "0x" + t + target.substr( 2 ), m_target_tmp );
+  // }
+  // m_target_ready = true;
 
   m_updated_gpu_inputs = true;
   updateGPULoop();
@@ -136,7 +149,8 @@ void CUDASolver::updateGPULoop()
   if( m_updated_gpu_inputs
       && m_target_ready
       && m_challenge.size() > 0
-      && m_address.size() > 0 )
+      && m_address.size() > 0 
+	  && m_diff_ready )
   {
     m_updated_gpu_inputs = false;
 
@@ -214,15 +228,15 @@ CUDASolver::bytes_t CUDASolver::findSolution()
     s_target = s;
   }
 
-  uint8_t target_input[64];
-  bytes_t target_bytes( 32 );
+  // uint8_t target_input[64];
+  // bytes_t target_bytes( 32 );
 
-  hexToBytes( s_target, target_bytes );
+  // hexToBytes( s_target, target_bytes );
 
-  for( int32_t i = 0; i < 32; i++ )
-  {
-    target_input[i] = (uint8_t)target_bytes[i];
-  }
+  // for( int32_t i = 0; i < 32; i++ )
+  // {
+  //   target_input[i] = (uint8_t)target_bytes[i];
+  // }
 
   unsigned char hash_prefix[52];
   std::string clean_challenge = s_challenge;
@@ -239,12 +253,14 @@ CUDASolver::bytes_t CUDASolver::findSolution()
     hash_prefix[i + 32] = (uint8_t)m_address[i];
   }
 
+  uint32_t diff = m_diff;
+
   CUDASolver::bytes_t byte_solution( 32 );
   h_done[0] = 0;
 
   do
   {
-    find_message( target_input, hash_prefix );
+    find_message( diff, hash_prefix );
   } while( !h_done[0] );
 
   for( int32_t i = 0; i < 32; i++ )
