@@ -263,9 +263,20 @@ CUDASolver::bytes_t CUDASolver::findSolution()
     find_message( diff, hash_prefix );
   } while( !h_done[0] );
 
-  for( int32_t i = 0; i < 32; i++ )
+  if( h_done[0] > 0 )
   {
-    byte_solution[i] = (uint8_t)h_message[i];
+    for( int32_t i = 0; i < 32; i++ )
+    {
+      byte_solution[i] = (uint8_t)h_message[i];
+    }
+  }
+  else
+  {
+    gpu_cleanup();
+    for( int32_t i = 0; i < 32; i++ )
+    {
+      byte_solution[i] = 0;
+    }
   }
 
   // What are these even here for?

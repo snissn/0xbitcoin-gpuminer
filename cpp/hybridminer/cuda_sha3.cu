@@ -66,7 +66,7 @@ uint8_t* d_solution;
 
 uint8_t* d_challenge;
 uint8_t* d_hash_prefix;
-__constant__ uint8_t d_init_message[84];
+__constant__ uint8_t d_init_message[85];
 
 #define ROTL64(x, y) (((x) << (y)) | ((x) >> (64 - (y))))
 
@@ -107,27 +107,148 @@ uint64_t xor5( uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e )
   return output;
 }
 
-__device__
-bool keccak( uint8_t *message, uint64_t target )
+__device__ __forceinline__
+uint64_t xor3( uint64_t a, uint64_t b, uint64_t c )
 {
-  uint64_t state[25];
+  uint64_t output;
+  asm( "xor.b64 %0, %1, %2;" : "=l"(output) : "l"(b) ,"l"(c) );
+  asm( "xor.b64 %0, %0, %1;" : "+l"(output) : "l"(a) );
+  return output;
+}
 
-  memset( state, 0, sizeof( state ) );
-
-  for( int32_t i = 0; i < 17; i++ )
-  {
-    state[i] ^= ( (uint64_t *)message )[i];
-  }
+__device__
+bool keccak( uint64_t *message, uint64_t target )
+{
+  uint64_t state[25], C[5];
 
   int32_t x;
 
 #if __CUDA_ARCH__ >= 600
-  uint64_t C[5], D[5];
-#pragma unroll 23
+  uint64_t D[5];
 #else
-  uint64_t C[5], D;
+  uint64_t D;
 #endif
-  for( int32_t i = 0; i < 23; i++ )
+
+  // Theta
+  // for i = 0 to 5
+  //    C[i] = state[i] ^ state[i + 5] ^ state[i + 10] ^ state[i + 15] ^ state[i + 20];
+  C[0] = xor5( message[0], message[5], message[10], (1ull << 32), 0 );
+  C[1] = xor3( message[1], message[6], 0x8000000000000000ull );
+  C[2] = message[2] ^ message[7];
+  C[3] = message[3] ^ message[8];
+  C[4] = message[4] ^ message[9];
+
+  // for i = 0 to 5
+  //     temp = C[(i + 4) % 5] ^ ROTL64(C[(i + 1) % 5], 1);
+  //     for j = 0 to 25, j += 5
+  //          state[j + i] ^= temp;
+  state[15] = state[20] = ROTL64(C[1], 1) ^ C[4];
+  state[ 0] = message[ 0] ^ state[20];
+  state[ 5] = message[ 5] ^ state[20];
+  state[10] = xor3( message[10],  state[20], (1ull << 32) );
+
+  state[11] = state[21] = ROTL64(C[2], 1) ^ C[0];
+  state[ 1] = message[ 1] ^ state[21];
+  state[ 6] = message[ 6] ^ state[21];
+  state[16] = 0x8000000000000000ull ^ state[21];
+
+  state[12] = state[17] = state[22] = ROTL64(C[3], 1) ^ C[1];
+  state[ 2] = message[ 2] ^ state[22];
+  state[ 7] = message[ 7] ^ state[22];
+
+  state[13] = state[18] = state[23] = ROTL64(C[4], 1) ^ C[2];
+  state[ 3] = message[ 3] ^ state[23];
+  state[ 8] = message[ 8] ^ state[23];
+
+  state[14] = state[19] = state[24] = ROTL64(C[0], 1) ^ C[3];
+  state[ 4] = message[ 4] ^ state[24];
+  state[ 9] = message[ 9] ^ state[24];
+
+  // Rho Pi
+  // for i = 0 to 24
+  //     j = piln[i];
+  //     C[0] = state[j];
+  //     state[j] = ROTL64(temp, r[i]);
+  //     temp = C[0];
+  C[0] = state[1];
+  state[ 1] = ROTL64( state[ 6], 44 );
+  state[ 6] = ROTL64( state[ 9], 20 );//D[4]
+  state[ 9] = ROTL64( state[22], 61 );
+  state[22] = ROTL64( state[14], 39 );
+  state[14] = ROTL64( state[20], 18 );
+  state[20] = ROTL64( state[ 2], 62 );//D[2]
+  state[ 2] = ROTL64( state[12], 43 );
+  state[12] = ROTL64( state[13], 25 );
+  state[13] = ROTL64( state[19],  8 );
+  state[19] = ROTL64( state[23], 56 );
+  state[23] = ROTL64( state[15], 41 );
+  state[15] = ROTL64( state[ 4], 27 );//D[4]
+  state[ 4] = ROTL64( state[24], 14 );
+  state[24] = ROTL64( state[21],  2 );
+  state[21] = ROTL64( state[ 8], 55 );//S[8]
+  state[ 8] = ROTL64( state[16], 45 );
+  state[16] = ROTL64( state[ 5], 36 );
+  state[ 5] = ROTL64( state[ 3], 28 );
+  state[ 3] = ROTL64( state[18], 21 );
+  state[18] = ROTL64( state[17], 15 );
+  state[17] = ROTL64( state[11], 10 );
+  state[11] = ROTL64( state[ 7],  6 );//D[2]
+  state[ 7] = ROTL64( state[10],  3 );
+  state[10] = ROTL64( C[0], 1 );
+
+  //  Chi
+  // for j = 0 to 25, j += 5
+  //     for i = 0 to 5
+  //         C[i] = state[j + i];
+  //     for i = 0 to 5
+  //         state[j + 1] ^= (~C[(i + 1) % 5]) & C[(i + 2) % 5];
+  C[0] = state[ 0];
+  C[1] = state[ 1];
+  state[ 0] ^= ( ~state[ 1] ) & state[2];
+  state[ 1] ^= ( ~state[ 2] ) & state[3];
+  state[ 2] ^= ( ~state[ 3] ) & state[4];
+  state[ 3] ^= ( ~state[ 4] ) & C[0];
+  state[ 4] ^= ( ~C[0] ) & C[1];
+
+  C[0] = state[ 5];
+  C[1] = state[ 6];
+  state[ 5] ^= ( ~state[ 6] ) & state[7];
+  state[ 6] ^= ( ~state[ 7] ) & state[8];
+  state[ 7] ^= ( ~state[ 8] ) & state[9];
+  state[ 8] ^= ( ~state[ 9] ) & C[0];
+  state[ 9] ^= ( ~C[0] ) & C[1];
+
+  C[0] = state[10];
+  C[1] = state[11];
+  state[10] ^= ( ~state[11] ) & state[12];
+  state[11] ^= ( ~state[12] ) & state[13];
+  state[12] ^= ( ~state[13] ) & state[14];
+  state[13] ^= ( ~state[14] ) & C[0];
+  state[14] ^= ( ~C[0] ) & C[1];
+
+  C[0] = state[15];
+  C[1] = state[16];
+  state[15] ^= ( ~state[16] ) & state[17];
+  state[16] ^= ( ~state[17] ) & state[18];
+  state[17] ^= ( ~state[18] ) & state[19];
+  state[18] ^= ( ~state[19] ) & C[0];
+  state[19] ^= ( ~C[0] ) & C[1];
+
+  C[0] = state[20];
+  C[1] = state[21];
+  state[20] ^= ( ~state[21] ) & state[22];
+  state[21] ^= ( ~state[22] ) & state[23];
+  state[22] ^= ( ~state[23] ) & state[24];
+  state[23] ^= ( ~state[24] ) & C[0];
+  state[24] ^= ( ~C[0] ) & C[1];
+
+  //  Iota
+  state[0] ^= RC[0];
+
+#if __CUDA_ARCH__ >= 600
+#pragma unroll 22
+#endif
+  for( int32_t i = 1; i < 23; i++ )
   {
     // Theta
     // for i = 0 to 5
@@ -300,12 +421,9 @@ __global__ __launch_bounds__( TPB50, 2 )
 void gpu_mine( uint8_t* solution, int32_t* done, uint64_t cnt, uint32_t threads, uint64_t target )
 {
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
-  uint8_t message[144];
+  uint8_t message[88] = { 0 };
 
   memcpy(message, d_init_message, 84);
-  message[84] = 1;
-  memset( &message[85], 0, 51 );
-  message[135] |= 0x80;
 
 #if __CUDA_ARCH__ > 500
   uint64_t step = gridDim.x * blockDim.x;
@@ -319,7 +437,7 @@ void gpu_mine( uint8_t* solution, int32_t* done, uint64_t cnt, uint32_t threads,
 #endif
     (uint64_t&)(message[60]) = nounce;
 
-    if( keccak( message, target ) )
+    if( keccak( (uint64_t*)message, target ) )
     {
 	  const uint32_t temp = atomicExch( &done[0], thread );
       if( done[0] == thread )
@@ -471,6 +589,8 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
   //  exit( EXIT_FAILURE );
   // }
 
+  if( h_done[0] < 0 ) return false;
+
   cnt += threads;
   printable_hashrate_cnt += threads;
 
@@ -488,7 +608,7 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
             8, ( (double)printable_hashrate_cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
             26, printable_hashrate_cnt );
   }
-  return ( h_done[0] != 0 );
+  return ( h_done[0] > 0 );
 }
 
 __host__
