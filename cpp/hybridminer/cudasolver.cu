@@ -1,12 +1,10 @@
-#include "cudasolver.h"
-#include "sha3.h"
-
 #include <assert.h>
 #include <sstream>
 #include <iomanip>
-#include <stdio.h>
 #include <iostream>
 #include <string.h>
+#include "cudasolver.h"
+#include "sha3.h"
 
 //we will need this!
 #include "cuda_sha3.cu"

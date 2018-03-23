@@ -3,13 +3,10 @@
 #define CUDA_DEVICE 0
 // default magic numbers
 
-#include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <time.h>
-#include <curand.h>
-#include <assert.h>
-#include <curand_kernel.h>
 
 #if defined(_MSC_VER)
 #  include <process.h>
@@ -576,7 +573,7 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
     print_counter++;
     // maybe breaking the control codes into macros is a good idea . . .
     printf( "\x1b[s\x1b[3;67f\x1b[38;5;221m%*.2f\x1b[0m\x1b[u"
-            "\x1b[s\x1b[3;29f\x1b[38;5;208m%*llu\x1b[0m\x1b[u",
+            "\x1b[s\x1b[3;29f\x1b[38;5;208m%*" PRIu64 "\x1b[0m\x1b[u",
             8, ( (double)printable_hashrate_cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
             26, printable_hashrate_cnt );
   }
