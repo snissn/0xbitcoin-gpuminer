@@ -197,7 +197,7 @@ module.exports = {
 			if(web3utils.toBN(solution_number).eq(0)) { return; }
             const challenge_number = miningParameters.challengeNumber;
             const digest = web3utils.soliditySha3(challenge_number,
-												  addressFrom.substring(2),
+												  addressFrom,
 												  solution_number);
             const digestBigNumber = web3utils.toBN(digest);
             if (digestBigNumber.lte(miningParameters.miningTarget)) {

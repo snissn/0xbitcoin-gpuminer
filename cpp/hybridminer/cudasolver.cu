@@ -31,7 +31,7 @@ static const char* const ascii[] = {
 };
 
 extern int32_t h_done[1];
-extern uint8_t* h_message;
+extern uint8_t message[32];
 
 static uint8_t fromAscii( uint8_t c )
 {
@@ -267,7 +267,7 @@ CUDASolver::bytes_t CUDASolver::findSolution()
   {
     for( int32_t i = 0; i < 32; i++ )
     {
-      byte_solution[i] = (uint8_t)h_message[i];
+      byte_solution[i] = solution[i];
     }
   }
   else

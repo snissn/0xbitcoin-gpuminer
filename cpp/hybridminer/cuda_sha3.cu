@@ -58,15 +58,16 @@ uint64_t print_counter;
 bool gpu_initialized;
 bool new_input;
 
-uint8_t * h_message;
+uint8_t solution[32] = { 0 };
+uint8_t* h_message;
 uint8_t init_message[84];
 
 int32_t* d_done;
-uint8_t* d_solution;
+uint64_t* d_solution;
 
 uint8_t* d_challenge;
 uint8_t* d_hash_prefix;
-__constant__ uint8_t d_init_message[85];
+__constant__ uint64_t d_mid[25];
 
 #define ROTL64(x, y) (((x) << (y)) | ((x) >> (64 - (y))))
 
@@ -107,94 +108,28 @@ uint64_t xor5( uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e )
   return output;
 }
 
-__device__ __forceinline__
-uint64_t xor3( uint64_t a, uint64_t b, uint64_t c )
-{
-  uint64_t output;
-  asm( "xor.b64 %0, %1, %2;" : "=l"(output) : "l"(b) ,"l"(c) );
-  asm( "xor.b64 %0, %0, %1;" : "+l"(output) : "l"(a) );
-  return output;
-}
-
 __device__
-bool keccak( uint64_t *message, uint64_t target )
+bool keccak( uint64_t nounce, uint64_t target )
 {
-  uint64_t state[25], C[5];
+  uint64_t state[25], C[5], D[5];
 
   int32_t x;
 
-#if __CUDA_ARCH__ >= 600
-  uint64_t D[5];
-#else
-  uint64_t D;
-#endif
+  state[ 2] = d_mid[ 2] ^ ROTL64(nounce, 44);//D[2], 28
+  state[ 4] = d_mid[ 4] ^ ROTL64(nounce, 14);//D[4], 6
 
-  // Theta
-  // for i = 0 to 5
-  //    C[i] = state[i] ^ state[i + 5] ^ state[i + 10] ^ state[i + 15] ^ state[i + 20];
-  C[0] = xor5( message[0], message[5], message[10], (1ull << 32), 0 );
-  C[1] = xor3( message[1], message[6], 0x8000000000000000ull );
-  C[2] = message[2] ^ message[7];
-  C[3] = message[3] ^ message[8];
-  C[4] = message[4] ^ message[9];
+  state[ 6] = d_mid[ 6] ^ ROTL64(nounce, 20);//mid[8]
+  state[ 9] = d_mid[ 9] ^ ROTL64(nounce, 62);//D[2], 46
 
-  // for i = 0 to 5
-  //     temp = C[(i + 4) % 5] ^ ROTL64(C[(i + 1) % 5], 1);
-  //     for j = 0 to 25, j += 5
-  //          state[j + i] ^= temp;
-  state[15] = state[20] = ROTL64(C[1], 1) ^ C[4];
-  state[ 0] = message[ 0] ^ state[20];
-  state[ 5] = message[ 5] ^ state[20];
-  state[10] = xor3( message[10],  state[20], (1ull << 32) );
+  state[11] = d_mid[11] ^ ROTL64(nounce, 7);//mid[12]
+  state[13] = d_mid[13] ^ ROTL64(nounce, 8);////D[4]
 
-  state[11] = state[21] = ROTL64(C[2], 1) ^ C[0];
-  state[ 1] = message[ 1] ^ state[21];
-  state[ 6] = message[ 6] ^ state[21];
-  state[16] = 0x8000000000000000ull ^ state[21];
+  state[15] = d_mid[15] ^ ROTL64(nounce, 27);//mid[13]
+  state[18] = d_mid[18] ^ ROTL64(nounce, 16);//D[2]
 
-  state[12] = state[17] = state[22] = ROTL64(C[3], 1) ^ C[1];
-  state[ 2] = message[ 2] ^ state[22];
-  state[ 7] = message[ 7] ^ state[22];
-
-  state[13] = state[18] = state[23] = ROTL64(C[4], 1) ^ C[2];
-  state[ 3] = message[ 3] ^ state[23];
-  state[ 8] = message[ 8] ^ state[23];
-
-  state[14] = state[19] = state[24] = ROTL64(C[0], 1) ^ C[3];
-  state[ 4] = message[ 4] ^ state[24];
-  state[ 9] = message[ 9] ^ state[24];
-
-  // Rho Pi
-  // for i = 0 to 24
-  //     j = piln[i];
-  //     C[0] = state[j];
-  //     state[j] = ROTL64(temp, r[i]);
-  //     temp = C[0];
-  C[0] = state[1];
-  state[ 1] = ROTL64( state[ 6], 44 );
-  state[ 6] = ROTL64( state[ 9], 20 );//D[4]
-  state[ 9] = ROTL64( state[22], 61 );
-  state[22] = ROTL64( state[14], 39 );
-  state[14] = ROTL64( state[20], 18 );
-  state[20] = ROTL64( state[ 2], 62 );//D[2]
-  state[ 2] = ROTL64( state[12], 43 );
-  state[12] = ROTL64( state[13], 25 );
-  state[13] = ROTL64( state[19],  8 );
-  state[19] = ROTL64( state[23], 56 );
-  state[23] = ROTL64( state[15], 41 );
-  state[15] = ROTL64( state[ 4], 27 );//D[4]
-  state[ 4] = ROTL64( state[24], 14 );
-  state[24] = ROTL64( state[21],  2 );
-  state[21] = ROTL64( state[ 8], 55 );//S[8]
-  state[ 8] = ROTL64( state[16], 45 );
-  state[16] = ROTL64( state[ 5], 36 );
-  state[ 5] = ROTL64( state[ 3], 28 );
-  state[ 3] = ROTL64( state[18], 21 );
-  state[18] = ROTL64( state[17], 15 );
-  state[17] = ROTL64( state[11], 10 );
-  state[11] = ROTL64( state[ 7],  6 );//D[2]
-  state[ 7] = ROTL64( state[10],  3 );
-  state[10] = ROTL64( C[0], 1 );
+  state[20] = d_mid[20] ^ ROTL64(nounce, 63);//mid[15]
+  state[21] = d_mid[21] ^ ROTL64(nounce, 55);//D[3], 33 ^ nounce
+  state[22] = d_mid[22] ^ ROTL64(nounce, 39);//D[4], 31
 
   //  Chi
   // for j = 0 to 25, j += 5
@@ -202,45 +137,40 @@ bool keccak( uint64_t *message, uint64_t target )
   //         C[i] = state[j + i];
   //     for i = 0 to 5
   //         state[j + 1] ^= (~C[(i + 1) % 5]) & C[(i + 2) % 5];
-  C[0] = state[ 0];
-  C[1] = state[ 1];
-  state[ 0] ^= ( ~state[ 1] ) & state[2];
-  state[ 1] ^= ( ~state[ 2] ) & state[3];
-  state[ 2] ^= ( ~state[ 3] ) & state[4];
-  state[ 3] ^= ( ~state[ 4] ) & C[0];
-  state[ 4] ^= ( ~C[0] ) & C[1];
+  state[ 0] = d_mid[ 0] ^ ( ~d_mid[ 1] ) & state[ 2];
+  state[ 1] = d_mid[ 1] ^ ( ~state[ 2] ) & d_mid[ 3];
+  state[ 2] = state[ 2] ^ ( ~d_mid[ 3] ) & state[ 4];
+  state[ 3] = d_mid[ 3] ^ ( ~state[ 4] ) & d_mid[ 0];
+  state[ 4] = state[ 4] ^ ( ~d_mid[ 0] ) & d_mid[ 1];
 
-  C[0] = state[ 5];
-  C[1] = state[ 6];
-  state[ 5] ^= ( ~state[ 6] ) & state[7];
-  state[ 6] ^= ( ~state[ 7] ) & state[8];
-  state[ 7] ^= ( ~state[ 8] ) & state[9];
-  state[ 8] ^= ( ~state[ 9] ) & C[0];
-  state[ 9] ^= ( ~C[0] ) & C[1];
+  C[0] = state[ 6];
+  state[ 5] = d_mid[ 5] ^ ( ~state[ 6] ) & d_mid[7];
+  state[ 6] = state[ 6] ^ ( ~d_mid[ 7] ) & d_mid[8];
+  state[ 7] = d_mid[ 7] ^ ( ~d_mid[ 8] ) & state[9];
+  state[ 8] = d_mid[ 8] ^ ( ~state[ 9] ) & d_mid[5];
+  state[ 9] = state[ 9] ^ ( ~d_mid[ 5] ) & C[0];
 
-  C[0] = state[10];
-  C[1] = state[11];
-  state[10] ^= ( ~state[11] ) & state[12];
-  state[11] ^= ( ~state[12] ) & state[13];
-  state[12] ^= ( ~state[13] ) & state[14];
-  state[13] ^= ( ~state[14] ) & C[0];
-  state[14] ^= ( ~C[0] ) & C[1];
+  C[0] = state[11];
+  state[10] = d_mid[10] ^ ( ~state[11] ) & d_mid[12];
+  state[11] = state[11] ^ ( ~d_mid[12] ) & state[13];
+  state[12] = d_mid[12] ^ ( ~state[13] ) & d_mid[14];
+  state[13] = state[13] ^ ( ~d_mid[14] ) & d_mid[10];
+  state[14] = d_mid[14] ^ ( ~d_mid[10] ) & C[0];
 
   C[0] = state[15];
-  C[1] = state[16];
-  state[15] ^= ( ~state[16] ) & state[17];
-  state[16] ^= ( ~state[17] ) & state[18];
-  state[17] ^= ( ~state[18] ) & state[19];
-  state[18] ^= ( ~state[19] ) & C[0];
-  state[19] ^= ( ~C[0] ) & C[1];
+  state[15] = state[15] ^ ( ~d_mid[16] ) & d_mid[17];
+  state[16] = d_mid[16] ^ ( ~d_mid[17] ) & state[18];
+  state[17] = d_mid[17] ^ ( ~state[18] ) & d_mid[19];
+  state[18] = state[18] ^ ( ~d_mid[19] ) & C[0];
+  state[19] = d_mid[19] ^ ( ~C[0] ) & d_mid[16];
 
   C[0] = state[20];
   C[1] = state[21];
-  state[20] ^= ( ~state[21] ) & state[22];
-  state[21] ^= ( ~state[22] ) & state[23];
-  state[22] ^= ( ~state[23] ) & state[24];
-  state[23] ^= ( ~state[24] ) & C[0];
-  state[24] ^= ( ~C[0] ) & C[1];
+  state[20] = state[20] ^ ( ~state[21] ) & state[22];
+  state[21] = state[21] ^ ( ~state[22] ) & d_mid[23];
+  state[22] = state[22] ^ ( ~d_mid[23] ) & d_mid[24];
+  state[23] = d_mid[23] ^ ( ~d_mid[24] ) & C[0];
+  state[24] = d_mid[24] ^ ( ~C[0] ) & C[1];
 
   //  Iota
   state[0] ^= RC[0];
@@ -276,40 +206,40 @@ bool keccak( uint64_t *message, uint64_t target )
       state[x + 20] ^= D[x];
     }
 #else
-    D = ROTL64(C[1], 1) ^ C[4];
-    state[ 0] ^= D;
-    state[ 5] ^= D;
-    state[10] ^= D;
-    state[15] ^= D;
-    state[20] ^= D;
+    D[0] = ROTL64(C[1], 1) ^ C[4];
+    state[ 0] ^= D[0];
+    state[ 5] ^= D[0];
+    state[10] ^= D[0];
+    state[15] ^= D[0];
+    state[20] ^= D[0];
 
-    D = ROTL64(C[2], 1) ^ C[0];
-    state[ 1] ^= D;
-    state[ 6] ^= D;
-    state[11] ^= D;
-    state[16] ^= D;
-    state[21] ^= D;
+    D[0] = ROTL64(C[2], 1) ^ C[0];
+    state[ 1] ^= D[0];
+    state[ 6] ^= D[0];
+    state[11] ^= D[0];
+    state[16] ^= D[0];
+    state[21] ^= D[0];
 
-    D = ROTL64(C[3], 1) ^ C[1];
-    state[ 2] ^= D;
-    state[ 7] ^= D;
-    state[12] ^= D;
-    state[17] ^= D;
-    state[22] ^= D;
+    D[0] = ROTL64(C[3], 1) ^ C[1];
+    state[ 2] ^= D[0];
+    state[ 7] ^= D[0];
+    state[12] ^= D[0];
+    state[17] ^= D[0];
+    state[22] ^= D[0];
 
-    D = ROTL64(C[4], 1) ^ C[2];
-    state[ 3] ^= D;
-    state[ 8] ^= D;
-    state[13] ^= D;
-    state[18] ^= D;
-    state[23] ^= D;
+    D[0] = ROTL64(C[4], 1) ^ C[2];
+    state[ 3] ^= D[0];
+    state[ 8] ^= D[0];
+    state[13] ^= D[0];
+    state[18] ^= D[0];
+    state[23] ^= D[0];
 
-    D = ROTL64(C[0], 1) ^ C[3];
-    state[ 4] ^= D;
-    state[ 9] ^= D;
-    state[14] ^= D;
-    state[19] ^= D;
-    state[24] ^= D;
+    D[0] = ROTL64(C[0], 1) ^ C[3];
+    state[ 4] ^= D[0];
+    state[ 9] ^= D[0];
+    state[14] ^= D[0];
+    state[19] ^= D[0];
+    state[24] ^= D[0];
 #endif
 
     // Rho Pi
@@ -418,12 +348,9 @@ __global__ __launch_bounds__( TPB52, 1 )
 #else
 __global__ __launch_bounds__( TPB50, 2 )
 #endif
-void gpu_mine( uint8_t* solution, int32_t* done, uint64_t cnt, uint32_t threads, uint64_t target )
+void gpu_mine( uint64_t* solution, int32_t* done, uint64_t cnt, uint32_t threads, uint64_t target )
 {
   uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
-  uint8_t message[88] = { 0 };
-
-  memcpy(message, d_init_message, 84);
 
 #if __CUDA_ARCH__ > 500
   uint64_t step = gridDim.x * blockDim.x;
@@ -435,14 +362,13 @@ void gpu_mine( uint8_t* solution, int32_t* done, uint64_t cnt, uint32_t threads,
   if( thread < threads )
   {
 #endif
-    (uint64_t&)(message[60]) = nounce;
 
-    if( keccak( (uint64_t*)message, target ) )
+    if( keccak( nounce, target ) )
     {
 	  const uint32_t temp = atomicExch( &done[0], thread );
       if( done[0] == thread )
       {
-        memcpy( solution, &message[52], 32 );
+        *solution = nounce;
       }
       return;
     }
@@ -471,6 +397,50 @@ void resetHashCount()
 {
   cnt = 0;
   //printable_hashrate_cnt = 0;
+}
+
+__host__
+void send_to_device( uint64_t* message )
+{
+	uint64_t C[4], D[5], mid[25];
+	C[0] = message[0] ^ message[5] ^ message[10] ^ 0x100000000ull;
+	C[1] = message[1] ^ message[6] ^ 0x8000000000000000ull;
+	C[2] = message[2] ^ message[7];
+	C[3] = message[4] ^ message[9];
+
+	D[0] = ROTL64(C[1], 1) ^ C[3];
+	D[1] = ROTL64(C[2], 1) ^ C[0];
+	D[2] = ROTL64(message[3], 1) ^ C[1];
+	D[3] = ROTL64(C[3], 1) ^ C[2];
+	D[4] = ROTL64(C[0], 1) ^ message[3];
+
+	mid[ 0] = message[ 0] ^ D[0];//S[0]
+	mid[ 1] = ROTL64( message[6] ^ D[1], 44 );//S[1]
+	mid[ 2] = ROTL64(D[2], 43);//D[2]
+	mid[ 3] = ROTL64(D[3], 21);//D[0]
+	mid[ 4] = ROTL64(D[4], 14);
+	mid[ 5] = ROTL64( message[3] ^ D[3], 28 );//S[5]
+	mid[ 6] = ROTL64( message[9] ^ D[4], 20 );//S[6]
+	mid[ 7] = ROTL64( message[10] ^ D[0] ^ 0x100000000ull, 3 );//S[7]
+	mid[ 8] = ROTL64( 0x8000000000000000ull ^ D[1], 45 );//S[8]
+	mid[ 9] = ROTL64(D[2], 61);
+	mid[10] = ROTL64( message[1] ^ D[1],  1 );//S[10]
+	mid[11] = ROTL64( message[7] ^ D[2],  6 );//S[11]
+	mid[12] = ROTL64(D[3], 25);
+	mid[13] = ROTL64(D[4],  8);
+	mid[14] = ROTL64(D[0], 18);
+	mid[15] = ROTL64( message[4] ^ D[4], 27 );//S[15]
+	mid[16] = ROTL64( message[5] ^ D[0], 36 );//S[16]
+	mid[17] = ROTL64(D[1], 10);
+	mid[18] = ROTL64(D[2], 15);
+	mid[19] = ROTL64(D[3], 56);
+	mid[20] = ROTL64( message[2] ^ D[2], 62 );//S[20]
+	mid[21] = ROTL64(D[3], 55);
+	mid[22] = ROTL64(D[4], 39);
+	mid[23] = ROTL64(D[0], 41);
+	mid[24] = ROTL64(D[1],  2);
+
+	cudaMemcpyToSymbol( d_mid, mid, sizeof( mid ), cuda_device, cudaMemcpyHostToDevice);
 }
 
 /**
@@ -525,6 +495,7 @@ void gpu_init()
     for(int8_t i_rand = 60; i_rand < 84; i_rand++){
       init_message[i_rand] = (uint8_t)rand() % 256;
     }
+	memcpy( solution, &init_message[52], 32 );
 
     gpu_initialized = true;
   }
@@ -560,7 +531,7 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
   for(int8_t i = 0; i < 52; i++){
     init_message[i] = hash_prefix[i];
   }
-  cudaMemcpyToSymbol( d_init_message, init_message, 84, cuda_device, cudaMemcpyHostToDevice );
+  send_to_device( (uint64_t*)init_message );
 
   cudaMemcpy( d_done, h_done, sizeof( int32_t ), cudaMemcpyHostToDevice );
   cudaMemset( d_solution, 0xff, 32 );
@@ -595,7 +566,8 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
   printable_hashrate_cnt += threads;
 
   cudaMemcpy( h_done, d_done, sizeof( int32_t ), cudaMemcpyDeviceToHost );
-  cudaMemcpy( h_message, d_solution, 32, cudaMemcpyDeviceToHost );
+  cudaMemcpy( h_message, d_solution, 8, cudaMemcpyDeviceToHost );
+  memcpy( &solution[12], h_message, 8 );
 
   clock_t t = clock() - start;
 
