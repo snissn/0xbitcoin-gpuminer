@@ -1,6 +1,6 @@
 {
   "name": "0xbitcoin-miner",
-  "version": "2.10.0-pre3",
+  "version": "2.10.0-pre4",
   "repository": {
     "type": "git",
     "url": "https://github.com/azlehria/0xbitcoin-gpuminer.git"

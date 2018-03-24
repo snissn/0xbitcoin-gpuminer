@@ -29,7 +29,7 @@ static const char* const ascii[] = {
 };
 
 extern int32_t h_done[1];
-extern uint8_t message[32];
+extern uint8_t solution[32];
 
 static uint8_t fromAscii( uint8_t c )
 {
@@ -148,7 +148,7 @@ void CUDASolver::updateGPULoop()
       && m_target_ready
       && m_challenge.size() > 0
       && m_address.size() > 0 
-	  && m_diff_ready )
+      && m_diff_ready )
   {
     m_updated_gpu_inputs = false;
 

@@ -83,8 +83,8 @@ __device__ __constant__ const uint64_t RC[24] = {
 __device__ __forceinline__
 uint64_t bswap_64( uint64_t x )
 {
-	return ((uint64_t)(__byte_perm((uint32_t) x, 0, 0x0123)) << 32)
-		   + __byte_perm((uint32_t)(x >> 32), 0, 0x0123);
+    return ((uint64_t)(__byte_perm((uint32_t) x, 0, 0x0123)) << 32)
+           + __byte_perm((uint32_t)(x >> 32), 0, 0x0123);
 }
 
 __device__ __forceinline__
@@ -355,7 +355,7 @@ void gpu_mine( uint64_t* solution, int32_t* done, uint64_t cnt, uint32_t threads
 
     if( keccak( nounce, target ) )
     {
-	  const uint32_t temp = atomicExch( &done[0], thread );
+      atomicExch( &done[0], thread );
       if( done[0] == thread )
       {
         *solution = nounce;
@@ -392,45 +392,45 @@ void resetHashCount()
 __host__
 void send_to_device( uint64_t* message )
 {
-	uint64_t C[4], D[5], mid[25];
-	C[0] = message[0] ^ message[5] ^ message[10] ^ 0x100000000ull;
-	C[1] = message[1] ^ message[6] ^ 0x8000000000000000ull;
-	C[2] = message[2] ^ message[7];
-	C[3] = message[4] ^ message[9];
+  uint64_t C[4], D[5], mid[25];
+  C[0] = message[0] ^ message[5] ^ message[10] ^ 0x100000000ull;
+  C[1] = message[1] ^ message[6] ^ 0x8000000000000000ull;
+  C[2] = message[2] ^ message[7];
+  C[3] = message[4] ^ message[9];
 
-	D[0] = ROTL64(C[1], 1) ^ C[3];
-	D[1] = ROTL64(C[2], 1) ^ C[0];
-	D[2] = ROTL64(message[3], 1) ^ C[1];
-	D[3] = ROTL64(C[3], 1) ^ C[2];
-	D[4] = ROTL64(C[0], 1) ^ message[3];
+  D[0] = ROTL64(C[1], 1) ^ C[3];
+  D[1] = ROTL64(C[2], 1) ^ C[0];
+  D[2] = ROTL64(message[3], 1) ^ C[1];
+  D[3] = ROTL64(C[3], 1) ^ C[2];
+  D[4] = ROTL64(C[0], 1) ^ message[3];
 
-	mid[ 0] = message[ 0] ^ D[0];//S[0]
-	mid[ 1] = ROTL64( message[6] ^ D[1], 44 );//S[1]
-	mid[ 2] = ROTL64(D[2], 43);//D[2]
-	mid[ 3] = ROTL64(D[3], 21);//D[0]
-	mid[ 4] = ROTL64(D[4], 14);
-	mid[ 5] = ROTL64( message[3] ^ D[3], 28 );//S[5]
-	mid[ 6] = ROTL64( message[9] ^ D[4], 20 );//S[6]
-	mid[ 7] = ROTL64( message[10] ^ D[0] ^ 0x100000000ull, 3 );//S[7]
-	mid[ 8] = ROTL64( 0x8000000000000000ull ^ D[1], 45 );//S[8]
-	mid[ 9] = ROTL64(D[2], 61);
-	mid[10] = ROTL64( message[1] ^ D[1],  1 );//S[10]
-	mid[11] = ROTL64( message[7] ^ D[2],  6 );//S[11]
-	mid[12] = ROTL64(D[3], 25);
-	mid[13] = ROTL64(D[4],  8);
-	mid[14] = ROTL64(D[0], 18);
-	mid[15] = ROTL64( message[4] ^ D[4], 27 );//S[15]
-	mid[16] = ROTL64( message[5] ^ D[0], 36 );//S[16]
-	mid[17] = ROTL64(D[1], 10);
-	mid[18] = ROTL64(D[2], 15);
-	mid[19] = ROTL64(D[3], 56);
-	mid[20] = ROTL64( message[2] ^ D[2], 62 );//S[20]
-	mid[21] = ROTL64(D[3], 55);
-	mid[22] = ROTL64(D[4], 39);
-	mid[23] = ROTL64(D[0], 41);
-	mid[24] = ROTL64(D[1],  2);
+  mid[ 0] = message[ 0] ^ D[0];//S[0]
+  mid[ 1] = ROTL64( message[6] ^ D[1], 44 );//S[1]
+  mid[ 2] = ROTL64(D[2], 43);//D[2]
+  mid[ 3] = ROTL64(D[3], 21);//D[0]
+  mid[ 4] = ROTL64(D[4], 14);
+  mid[ 5] = ROTL64( message[3] ^ D[3], 28 );//S[5]
+  mid[ 6] = ROTL64( message[9] ^ D[4], 20 );//S[6]
+  mid[ 7] = ROTL64( message[10] ^ D[0] ^ 0x100000000ull, 3 );//S[7]
+  mid[ 8] = ROTL64( 0x8000000000000000ull ^ D[1], 45 );//S[8]
+  mid[ 9] = ROTL64(D[2], 61);
+  mid[10] = ROTL64( message[1] ^ D[1],  1 );//S[10]
+  mid[11] = ROTL64( message[7] ^ D[2],  6 );//S[11]
+  mid[12] = ROTL64(D[3], 25);
+  mid[13] = ROTL64(D[4],  8);
+  mid[14] = ROTL64(D[0], 18);
+  mid[15] = ROTL64( message[4] ^ D[4], 27 );//S[15]
+  mid[16] = ROTL64( message[5] ^ D[0], 36 );//S[16]
+  mid[17] = ROTL64(D[1], 10);
+  mid[18] = ROTL64(D[2], 15);
+  mid[19] = ROTL64(D[3], 56);
+  mid[20] = ROTL64( message[2] ^ D[2], 62 );//S[20]
+  mid[21] = ROTL64(D[3], 55);
+  mid[22] = ROTL64(D[4], 39);
+  mid[23] = ROTL64(D[0], 41);
+  mid[24] = ROTL64(D[1],  2);
 
-	cudaMemcpyToSymbol( d_mid, mid, sizeof( mid ), cuda_device, cudaMemcpyHostToDevice);
+  cudaMemcpyToSymbol( d_mid, mid, sizeof( mid ), cuda_device, cudaMemcpyHostToDevice);
 }
 
 /**
@@ -485,7 +485,7 @@ void gpu_init()
     for(int8_t i_rand = 60; i_rand < 84; i_rand++){
       init_message[i_rand] = (uint8_t)rand() % 256;
     }
-	memcpy( solution, &init_message[52], 32 );
+    memcpy( solution, &init_message[52], 32 );
 
     gpu_initialized = true;
   }
@@ -524,7 +524,7 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
   send_to_device( (uint64_t*)init_message );
 
   cudaMemcpy( d_done, h_done, sizeof( int32_t ), cudaMemcpyHostToDevice );
-  cudaMemset( d_solution, 0xff, 32 );
+  cudaMemset( d_solution, 0xff, 8 );
 
   uint32_t threads = 1UL << intensity;
 
@@ -566,11 +566,11 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
   {
     print_counter++;
 
-	// maybe breaking the control codes into macros is a good idea . . .
-	printf( "\x1b[s\x1b[3;67f\x1b[38;5;221m%*.2f\x1b[0m\x1b[u"
-			"\x1b[s\x1b[3;29f\x1b[38;5;208m%*" PRIu64 "\x1b[0m\x1b[u",
-			8, ( (double)printable_hashrate_cnt / t / 1000000 ),
-		  26, printable_hashrate_cnt );
+    // maybe breaking the control codes into macros is a good idea . . .
+    printf( "\x1b[s\x1b[3;67f\x1b[38;5;221m%*.2f\x1b[0m\x1b[u"
+            "\x1b[s\x1b[3;29f\x1b[38;5;208m%*" PRIu64 "\x1b[0m\x1b[u",
+            8, ( (double)printable_hashrate_cnt / t / 1000000 ),
+            26, printable_hashrate_cnt );
   }
 
   return ( h_done[0] > 0 );

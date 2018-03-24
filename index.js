@@ -15,15 +15,15 @@ var running = true;
 init();
 
 async function init() {
-	initSignalHandlers();
-	drawLayout();
+    initSignalHandlers();
+    drawLayout();
 
-	console.log('Welcome to 0xBitcoin Miner!')
-	//console.log('\n')
-	console.log('Type a command to get started.  Type "help" for a list of commands.')
-	//console.log('\n')
+    console.log('Welcome to 0xBitcoin Miner!')
+    //console.log('\n')
+    console.log('Type a command to get started.  Type "help" for a list of commands.')
+    //console.log('\n')
 
-	getPrompt();
+    getPrompt();
 }
 
 async function getPrompt() {
@@ -33,36 +33,36 @@ async function getPrompt() {
 }
 
 function sigHandler(signal) {
-	process.exit(128 + signal)
+    process.exit(128 + signal)
 }
 
 function initSignalHandlers() {
-	process.on('SIGTERM', sigHandler);
-	process.on('SIGINT', sigHandler);
-	process.on('SIGBREAK', sigHandler);
-	process.on('SIGHUP', sigHandler);
-	process.on('SIGWINCH', (sig) => {
-		process.stdout.write("\x1b[5r\x1b[5;1f");
-	});
-	process.on('exit', (sig) => {
-		process.stdout.write("\x1b[25h\x1b!p");
-	});
+    process.on('SIGTERM', sigHandler);
+    process.on('SIGINT', sigHandler);
+    process.on('SIGBREAK', sigHandler);
+    process.on('SIGHUP', sigHandler);
+    process.on('SIGWINCH', (sig) => {
+        process.stdout.write("\x1b[5r\x1b[5;1f");
+    });
+    process.on('exit', (sig) => {
+        process.stdout.write("\x1b[?25h\x1b!p");
+    });
 }
 
 function drawLayout() {
-	process.stdout.write( "\x1b[2J\x1b(0" );
-	process.stdout.write( "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqk" );
-	process.stdout.write( "\x1b[4;1fmqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqj" );
-	process.stdout.write( "\x1b[2;1fx\x1b[2;28fx\x1b[2;56fx\x1b[2;80fx" );
-	process.stdout.write( "\x1b[3;1fx\x1b[3;28fx\x1b[3;56fx\x1b[3;80fx" );
-	process.stdout.write( "\x1b(B\x1b[2;2fChallenge:" );
-	process.stdout.write( "\x1b[3;2fDifficulty:" );
-	process.stdout.write( "\x1b[2;30fHashes this round" );
-	process.stdout.write( "\x1b[2;76fSols" );
-	process.stdout.write( "\x1b[3;76fMH/s" );
-	process.stdout.write( "\x1b[s\x1b[2;74f\x1b[38;5;221m0\x1b[0m\x1b[u" );
-	process.stdout.write( "\x1b[1;58fv" + pjson.version );
-	process.stdout.write( "\x1b[5r\x1b[?25l\x1b[5;1f" );
+    process.stdout.write( "\x1b[2J\x1b(0" );
+    process.stdout.write( "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqk" );
+    process.stdout.write( "\x1b[4;1fmqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqj" );
+    process.stdout.write( "\x1b[2;1fx\x1b[2;28fx\x1b[2;56fx\x1b[2;80fx" );
+    process.stdout.write( "\x1b[3;1fx\x1b[3;28fx\x1b[3;56fx\x1b[3;80fx" );
+    process.stdout.write( "\x1b(B\x1b[2;2fChallenge:" );
+    process.stdout.write( "\x1b[3;2fDifficulty:" );
+    process.stdout.write( "\x1b[2;30fHashes this round" );
+    process.stdout.write( "\x1b[2;76fSols" );
+    process.stdout.write( "\x1b[3;76fMH/s" );
+    process.stdout.write( "\x1b[s\x1b[2;74f\x1b[38;5;221m0\x1b[0m\x1b[u" );
+    process.stdout.write( "\x1b[1;58fv" + pjson.version );
+    process.stdout.write( "\x1b[5r\x1b[5;1f" );
 }
 
 async function promptForCommand() {
@@ -140,6 +140,7 @@ async function handleCommand(result) {
 
         //us command as option -- for cuda or opencl
         subsystem_option = subsystem_command;
+        process.stdout.write('\x1b[?25l');
         Miner.mine(subsystem_command, subsystem_option)
     }
 
@@ -167,6 +168,7 @@ async function handleCommand(result) {
         Miner.setNetworkInterface(NetworkInterface);
 
         Miner.setMiningStyle("solo")
+        process.stdout.write('\x1b[?25l');
         Miner.mine(subsystem_command, subsystem_option)
     }
 
@@ -181,6 +183,7 @@ async function handleCommand(result) {
             Miner.init(web3, Vault, miningLogger);
             Miner.setNetworkInterface(PoolInterface);
             Miner.setMiningStyle("pool")
+            process.stdout.write('\x1b[?25l');
             Miner.mine(subsystem_command, subsystem_option)
         }
     }
