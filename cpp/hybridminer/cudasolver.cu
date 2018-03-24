@@ -251,7 +251,7 @@ CUDASolver::bytes_t CUDASolver::findSolution()
     hash_prefix[i + 32] = (uint8_t)m_address[i];
   }
 
-  uint32_t diff = m_diff;
+  uint64_t diff = m_diff;
 
   CUDASolver::bytes_t byte_solution( 32 );
   h_done[0] = 0;

@@ -567,12 +567,11 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
     print_counter++;
 
 	// maybe breaking the control codes into macros is a good idea . . .
-	printf( "\x1b[s\x1b[3;67f\x1b[38;5;221m%*.2f\x1b[0m\x1b[u",
-			8, ( (double)printable_hashrate_cnt / t / 1000000 ) );
-  }
-
-  printf( "\x1b[s\x1b[3;29f\x1b[38;5;208m%*" PRIu64 "\x1b[0m\x1b[u",
+	printf( "\x1b[s\x1b[3;67f\x1b[38;5;221m%*.2f\x1b[0m\x1b[u"
+			"\x1b[s\x1b[3;29f\x1b[38;5;208m%*" PRIu64 "\x1b[0m\x1b[u",
+			8, ( (double)printable_hashrate_cnt / t / 1000000 ),
 		  26, printable_hashrate_cnt );
+  }
 
   return ( h_done[0] > 0 );
 }
