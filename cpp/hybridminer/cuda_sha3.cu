@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <time.h>
+#include <sys/timeb.h>
 
 #if defined(_MSC_VER)
 #  include <process.h>
@@ -46,7 +47,7 @@ int32_t cuda_device;
 int32_t clock_speed;
 int32_t compute_version;
 int32_t h_done[1] = { 0 };
-clock_t start;
+struct timeb start, end;
 
 uint64_t cnt;
 uint64_t printable_hashrate_cnt;
@@ -82,16 +83,8 @@ __device__ __constant__ const uint64_t RC[24] = {
 __device__ __forceinline__
 uint64_t bswap_64( uint64_t x )
 {
-	uint64_t result;
-	//result = __byte_perm((uint32_t) x, 0, 0x0123);
-	//return (result << 32) + __byte_perm(_HIDWORD(x), 0, 0x0123);
-	asm( "{ .reg .b32 x, y;"
-		   "mov.b64 {x,y}, %1;"
-		   "prmt.b32 x, x, 0, 0x0123;"
-		   "prmt.b32 y, y, 0, 0x0123;"
-		   "mov.b64 %0, {y,x};"
-	     "}" : "=l"(result): "l"(x));
-	return result;
+	return ((uint64_t)(__byte_perm((uint32_t) x, 0, 0x0123)) << 32)
+		   + __byte_perm((uint32_t)(x >> 32), 0, 0x0123);
 }
 
 __device__ __forceinline__
@@ -112,21 +105,21 @@ bool keccak( uint64_t nounce, uint64_t target )
 
   int32_t x;
 
-  state[ 2] = d_mid[ 2] ^ ROTL64(nounce, 44);//D[2], 28
-  state[ 4] = d_mid[ 4] ^ ROTL64(nounce, 14);//D[4], 6
+  state[ 2] = d_mid[ 2] ^ ROTL64(nounce, 44);
+  state[ 4] = d_mid[ 4] ^ ROTL64(nounce, 14);
 
-  state[ 6] = d_mid[ 6] ^ ROTL64(nounce, 20);//mid[8]
-  state[ 9] = d_mid[ 9] ^ ROTL64(nounce, 62);//D[2], 46
+  state[ 6] = d_mid[ 6] ^ ROTL64(nounce, 20);
+  state[ 9] = d_mid[ 9] ^ ROTL64(nounce, 62);
 
-  state[11] = d_mid[11] ^ ROTL64(nounce, 7);//mid[12]
-  state[13] = d_mid[13] ^ ROTL64(nounce, 8);////D[4]
+  state[11] = d_mid[11] ^ ROTL64(nounce, 7);
+  state[13] = d_mid[13] ^ ROTL64(nounce, 8);
 
-  state[15] = d_mid[15] ^ ROTL64(nounce, 27);//mid[13]
-  state[18] = d_mid[18] ^ ROTL64(nounce, 16);//D[2]
+  state[15] = d_mid[15] ^ ROTL64(nounce, 27);
+  state[18] = d_mid[18] ^ ROTL64(nounce, 16);
 
-  state[20] = d_mid[20] ^ ROTL64(nounce, 63);//mid[15]
-  state[21] = d_mid[21] ^ ROTL64(nounce, 55);//D[3], 33 ^ nounce
-  state[22] = d_mid[22] ^ ROTL64(nounce, 39);//D[4], 31
+  state[20] = d_mid[20] ^ ROTL64(nounce, 63);
+  state[21] = d_mid[21] ^ ROTL64(nounce, 55);
+  state[22] = d_mid[22] ^ ROTL64(nounce, 39);
 
   //  Chi
   // for j = 0 to 25, j += 5
@@ -448,7 +441,7 @@ void gpu_init()
 {
   cudaDeviceProp device_prop;
   int32_t device_count;
-  start = clock();
+  ftime( &start );
   
   srand((time(NULL) & 0xFFFF) | (getpid() << 16));
 
@@ -566,17 +559,21 @@ bool find_message( uint64_t target, uint8_t * hash_prefix )
   cudaMemcpy( h_message, d_solution, 8, cudaMemcpyDeviceToHost );
   memcpy( &solution[12], h_message, 8 );
 
-  clock_t t = clock() - start;
+  ftime( &end );
+  double t = (double)((end.time * 1000 + end.millitm) - (start.time * 1000 + start.millitm)) / 1000;
 
-  if( (t / 100) >= print_counter )
+  if( t*10 > print_counter )
   {
     print_counter++;
-    // maybe breaking the control codes into macros is a good idea . . .
-    printf( "\x1b[s\x1b[3;67f\x1b[38;5;221m%*.2f\x1b[0m\x1b[u"
-            "\x1b[s\x1b[3;29f\x1b[38;5;208m%*" PRIu64 "\x1b[0m\x1b[u",
-            8, ( (double)printable_hashrate_cnt / ( (double)t / CLOCKS_PER_SEC ) / 1000000 ),
-            26, printable_hashrate_cnt );
+
+	// maybe breaking the control codes into macros is a good idea . . .
+	printf( "\x1b[s\x1b[3;67f\x1b[38;5;221m%*.2f\x1b[0m\x1b[u",
+			8, ( (double)printable_hashrate_cnt / t / 1000000 ) );
   }
+
+  printf( "\x1b[s\x1b[3;29f\x1b[38;5;208m%*" PRIu64 "\x1b[0m\x1b[u",
+		  26, printable_hashrate_cnt );
+
   return ( h_done[0] > 0 );
 }
 
