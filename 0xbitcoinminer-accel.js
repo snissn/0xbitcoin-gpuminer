@@ -62,8 +62,8 @@ module.exports = {
             miningLogger.print("Please create a new account with 'account new' before solo mining.")
             //console.log('\n')
             return false;
-        } else {
-            miningLogger.print("Selected mining account:\n\t", eth_account.address);
+//        } else {
+//            miningLogger.print("Selected mining account:\n\t", eth_account.address);
             //console.log('\n')
         }
 
@@ -76,7 +76,7 @@ module.exports = {
 
         this.miningLogger.appendToStandardLog("Begin mining for " + this.minerEthAddress + " @ gasprice " + this.vault.getGasPriceGwei());
 
-        miningLogger.print("Mining for", this.minerEthAddress);
+        process.stdout.write('\x1b[s\x1b[?25l\x1b[3;72f\x1b[38;5;33m' + this.minerEthAddress.slice(0, 8) + '\x1b[0m\x1b[u\x1b[?25h');
 
         if (this.miningStyle != "pool") {
             miningLogger.print("Gas price is", this.vault.getGasPriceGwei(), 'gwei');
@@ -138,24 +138,24 @@ module.exports = {
             //miningLogger.print("New challenge received");
             CPPMiner.setChallengeNumber(this.challengeNumber);
             bResume = true;
-			process.stdout.write("\x1b[s\x1b[2;13f\x1b[38;5;34m" + this.challengeNumber.substring(2, 10) +
-								 "\x1b[0m\x1b[u");
+            process.stdout.write("\x1b[s\x1b[?25l\x1b[2;13f\x1b[38;5;34m" + this.challengeNumber.substring(2, 10) +
+                                 "\x1b[0m\x1b[u\x1b[?25h");
         }
 
         if (this.miningTarget == null || !this.miningTarget.eq(miningParameters.miningTarget)) {
             this.miningTarget = miningParameters.miningTarget
 
-            miningLogger.print("New mining target received");
+//            miningLogger.print("New mining target received");
             CPPMiner.setDifficultyTarget("0x" + this.miningTarget.toString(16, 64));
         }
 
         if (this.miningDifficulty != miningParameters.miningDifficulty) {
             this.miningDifficulty = miningParameters.miningDifficulty
 
-            miningLogger.print("New difficulty set", this.miningDifficulty);
-			process.stdout.write("\x1b[s\x1b[3;14f\x1b[38;5;34m" + this.miningDifficulty.toString().padEnd(7) +
-								 "\x1b[0m\x1b[u");
-//			CPPMiner.setDifficulty( parseInt( this.miningTarget.toString(16, 64).substring(0, 16), 16 ) );
+//            miningLogger.print("New difficulty set", this.miningDifficulty);
+            process.stdout.write("\x1b[s\x1b[?25l\x1b[3;14f\x1b[38;5;34m" + this.miningDifficulty.toString().padEnd(7) +
+                                 "\x1b[0m\x1b[u\x1b[?25h");
+//            CPPMiner.setDifficulty( parseInt( this.miningTarget.toString(16, 64).substring(0, 16), 16 ) );
         }
 
         if (bResume && !this.mining) {
@@ -194,20 +194,20 @@ module.exports = {
         var self = this;
 
         const verifyAndSubmit = (solution_number) => {
-			if(web3utils.toBN(solution_number).eq(0)) { return; }
+            if(web3utils.toBN(solution_number).eq(0)) { return; }
             const challenge_number = miningParameters.challengeNumber;
             const digest = web3utils.soliditySha3(challenge_number,
-												  addressFrom,
-												  solution_number);
+                                                  addressFrom,
+                                                  solution_number);
             const digestBigNumber = web3utils.toBN(digest);
             if (digestBigNumber.lte(miningParameters.miningTarget)) {
-				solutionsSubmitted++;
-                miningLogger.print("Submitting solution #" + solutionsSubmitted);
+                solutionsSubmitted++;
+//                miningLogger.print("Submitting solution #" + solutionsSubmitted);
                 //  self.submitNewMinedBlock(minerEthAddress, solution_number, digest, challenge_number);
-				process.stdout.write("\x1b[s\x1b[2;67f\x1b[38;5;221m" + solutionsSubmitted.toString().padStart(8) +
-								 "\x1b[0m\x1b[u");
+                process.stdout.write("\x1b[s\x1b[?25l\x1b[3;22f\x1b[38;5;221m" + solutionsSubmitted.toString().padStart(8) +
+                                     "\x1b[0m\x1b[u\x1b[?25h");
                 return self.submitNewMinedBlock(addressFrom, minerEthAddress, solution_number,
-												digest, challenge_number, target, difficulty)
+                                                digest, challenge_number, target, difficulty)
             //} else {
             //    console.error("Verification failed!\n",
             //                  "challenge:", challenge_number, "\n",

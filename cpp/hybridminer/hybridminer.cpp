@@ -36,9 +36,10 @@ HybridMiner::~HybridMiner()
 //set the hardware type to 'cpu' or 'gpu'
 void HybridMiner::setHardwareType( std::string const& hardwareType )
 {
-  std::cout << "Setting hardware type: "
-            << ( m_hardwareType = hardwareType )
-            << std::endl;
+  // std::cout << "Setting hardware type: "
+  //           << ( m_hardwareType = hardwareType )
+  //           << std::endl;
+  m_hardwareType = hardwareType;
 }
 
 void HybridMiner::setChallengeNumber( std::string const& challengeNumber )

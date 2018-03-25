@@ -14,22 +14,32 @@ var running = true;
 
 init();
 
-async function init() {
+function init() {
     initSignalHandlers();
-    drawLayout();
 
-    console.log('Welcome to 0xBitcoin Miner!')
-    //console.log('\n')
-    console.log('Type a command to get started.  Type "help" for a list of commands.')
-    //console.log('\n')
+    prompt.message = null;
+    prompt.delimiter = ":";
+    prompt.start();
 
-    getPrompt();
+    if(process.argv.length > 2) {
+        handleCommand(process.argv.slice(2).join(' '));
+        if(process.argv[2] == 'help') {
+            return process.exit();
+        } else {
+            drawLayout();
+        }
+    } else {
+        drawLayout();
+        console.log('Welcome to 0xBitcoin Miner!')
+        console.log('Type a command to get started.  Type "help" for a list of commands.')
+    }
+    return getPrompt();
 }
 
 async function getPrompt() {
     var result = await promptForCommand();
 
-    getPrompt();
+    return getPrompt();
 }
 
 function sigHandler(signal) {
@@ -45,37 +55,37 @@ function initSignalHandlers() {
         process.stdout.write("\x1b[5r\x1b[5;1f");
     });
     process.on('exit', (sig) => {
-        process.stdout.write("\x1b[?25h\x1b!p");
+        process.stdout.write("\x1b[s\x1b[?25h\x1b[r\x1b[u");
     });
 }
 
 function drawLayout() {
-    process.stdout.write( "\x1b[2J\x1b(0" );
-    process.stdout.write( "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqk" );
-    process.stdout.write( "\x1b[4;1fmqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqj" );
-    process.stdout.write( "\x1b[2;1fx\x1b[2;28fx\x1b[2;56fx\x1b[2;80fx" );
-    process.stdout.write( "\x1b[3;1fx\x1b[3;28fx\x1b[3;56fx\x1b[3;80fx" );
+    process.stdout.write( "\x1b[?25l\x1b[2J\x1b(0" );
+    process.stdout.write( "\x1b[1;1flqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqqqqqqqqqqwqqqqqqqqqqqqqqqqqk" );
+    process.stdout.write( "\x1b[4;1fmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqqqqqqqqqqvqqqqqqqqqqqqqqqqqj" );
+    process.stdout.write( "\x1b[2;1fx\x1b[2;35fx\x1b[2;62fx\x1b[2;80fx" );
+    process.stdout.write( "\x1b[3;1fx\x1b[3;35fx\x1b[3;62fx\x1b[3;80fx" );
     process.stdout.write( "\x1b(B\x1b[2;2fChallenge:" );
     process.stdout.write( "\x1b[3;2fDifficulty:" );
-    process.stdout.write( "\x1b[2;30fHashes this round" );
-    process.stdout.write( "\x1b[2;76fSols" );
-    process.stdout.write( "\x1b[3;76fMH/s" );
-    process.stdout.write( "\x1b[s\x1b[2;74f\x1b[38;5;221m0\x1b[0m\x1b[u" );
-    process.stdout.write( "\x1b[1;58fv" + pjson.version );
-    process.stdout.write( "\x1b[5r\x1b[5;1f" );
+    process.stdout.write( "\x1b[2;37fHashes this round" );
+    process.stdout.write( "\x1b[2;63fRound time:" );
+    process.stdout.write( "\x1b[3;63fAccount:" );
+    process.stdout.write( "\x1b[2;31fMH/s" );
+    process.stdout.write( "\x1b[3;31fSols" );
+    process.stdout.write( "\x1b[s\x1b[3;29f\x1b[38;5;221m0\x1b[0m\x1b[u" );
+    process.stdout.write( "\x1b[1;64fv" + pjson.version );
+    process.stdout.write( "\x1b[5r\x1b[5;1f\x1b[?25h" );
 }
 
 async function promptForCommand() {
     return new Promise(function (fulfilled, rejected) {
-        //console.log('')
-        prompt.start();
         prompt.get(['command'], async function (err, result) {
             if (err) {
                 console.log(err);
-                rejected(err);
+                return rejected(err);
             } else {
-                var response = await handleCommand(result)
-                fulfilled(response);
+                var response = await handleCommand(result.command)
+                return fulfilled(response);
             }
         });
     });
@@ -93,7 +103,7 @@ var subsystem_option = process.argv[4] ;
 */
 
 async function handleCommand(result) {
-    var split_command = result.command.split(' ');
+    var split_command = result.split(' ');
     //console.log( split_command )
 
     var subsystem_name = split_command[0];
@@ -140,7 +150,6 @@ async function handleCommand(result) {
 
         //us command as option -- for cuda or opencl
         subsystem_option = subsystem_command;
-        process.stdout.write('\x1b[?25l');
         Miner.mine(subsystem_command, subsystem_option)
     }
 
@@ -168,7 +177,6 @@ async function handleCommand(result) {
         Miner.setNetworkInterface(NetworkInterface);
 
         Miner.setMiningStyle("solo")
-        process.stdout.write('\x1b[?25l');
         Miner.mine(subsystem_command, subsystem_option)
     }
 
@@ -183,48 +191,45 @@ async function handleCommand(result) {
             Miner.init(web3, Vault, miningLogger);
             Miner.setNetworkInterface(PoolInterface);
             Miner.setMiningStyle("pool")
-            process.stdout.write('\x1b[?25l');
             Miner.mine(subsystem_command, subsystem_option)
         }
     }
 
+    if (subsystem_name == 'exit' || subsystem_name == 'quit') {
+        process.exit(0);
+    }
+
     if (subsystem_name == 'help') {
-        //console.log('\n\n')
-        console.log('--0xBitcoin Miner Help--')
-        console.log('Available commands:\n')
-
-        //console.log('\n');
-        console.log('"account new" - Create a new mining account')
-        console.log('"account list" - List all mining accounts')
-        console.log('"account select 0x####" - Select a primary mining account by address')
-        console.log('"account balance" - List the ether and token balance of your selected account\n')
-
-        //console.log('\n');
-        console.log('"contract list" - List the selected token contract to mine')
-        console.log('"contract select 0x####" - Select a PoW token contract to mine\n')
-
-        //console.log('\n');
-        console.log('"config list" - Show your current configuration')
-        console.log('"config gasprice #" - Set the gasprice used to submit PoW to the token smartcontract ')
-        //  console.log('"config cpu_threads #" - Set the number of CPU cores to use for mining ')
-        console.log('"config web3provider http://----:####" - Set the web3 provider url for submitting ethereum transactions\n')
-
-        //console.log('\n');
-        console.log('"pool mine" - Begin mining into a pool')
-        console.log('"pool mine cuda" - Begin mining into a pool using CUDA GPU')
-        console.log('"pool mine opengl" - Begin mining into a pool using OPENGL GPU')
-        console.log('"pool list" - List the selected mining pool')
-        console.log('"pool select http://####.com:####" - Select a pool to mine into\n')
-
-        //console.log('\n');
-        console.log('"test mine" - Begin mining on Ropsten')
-        console.log('"mine" - Begin mining')
-        console.log('"mine cuda" - Begin mining using CUDA GPU')
-        console.log('"mine opengl" - Begin mining using OPENGL GPU')
-        //  console.log('\n')
-        //  console.log('Encrypted data vault stored at '+ Vault.get0xBitcoinLocalFolderPath())
-
-        //console.log('\n\n')
+        return printHelp();
     }
 }
-//init();
+
+function printHelp() {
+    console.log('--0xBitcoin Miner Help--')
+    console.log('Available commands:\n')
+
+    console.log('"account new"            - Create a new mining account')
+    console.log('"account list"           - List all mining accounts')
+    console.log('"account select 0x####"  - Select the active mining account by address')
+    console.log('"account balance"        - List the Ether & token balance of the active account\n')
+
+    console.log('"contract list"          - List the selected token contract to mine')
+    console.log('"contract select 0x####" - Select a PoW token contract to mine\n')
+
+    console.log('"config list"            - Show your current configuration')
+    console.log('"config gasprice #"      - Set the gasprice used to submit PoW in solo mining')
+    //  console.log('"config cpu_threads #"   - Set the number of CPU cores to use for mining ')
+    console.log('"config web3provider http://----:####" - Set the web3 provider to submit PoW\n')
+
+    console.log('"pool mine"              - Begin mining into a pool using CPU')
+    console.log('"pool mine cuda"         - Begin mining into a pool using CUDA GPU')
+    //console.log('"pool mine opencl"       - Begin mining into a pool using OpenCL GPU')
+    console.log('"pool list"              - List the selected mining pool')
+    console.log('"pool select http://####.com:####" - Select a pool to mine into\n')
+
+    console.log('"test mine"              - Begin solo mining on Ropsten testnet')
+    console.log('"mine"                   - Begin solo mining')
+    console.log('"mine cuda"              - Begin solo mining using CUDA GPU')
+    //console.log('"mine opencl" - Begin mining using OpenCL GPU')
+    //  console.log('Encrypted data vault stored at '+ Vault.get0xBitcoinLocalFolderPath())
+}
